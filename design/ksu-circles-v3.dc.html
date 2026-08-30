@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@700&family=Zen+Kaku+Gothic+New:wght@500;700&family=Noto+Sans+JP:wght@400;500&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet" />
+<script src="./image-slot.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; background: #EFEFEB; }
+  body { font-family: "Noto Sans JP", sans-serif; -webkit-font-smoothing: antialiased; color: #14213A; }
+  a { color: #14213A; text-decoration: underline; }
+  a:hover { color: #6B7484; }
+  * { box-sizing: border-box; }
+  @keyframes lineUp { from { opacity: 0; transform: translateY(20px) } to { opacity: 1; transform: translateY(0) } }
+  @keyframes tileOpen { from { clip-path: inset(50% 0) } to { clip-path: inset(0) } }
+  @keyframes cueBob { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(8px) } }
+  @keyframes heroUp { from { opacity: 0; transform: translateY(16px) } to { opacity: 1; transform: translateY(0) } }
+  @keyframes slideZoom { from { transform: scale(1) } to { transform: scale(1.06) } }
+  @keyframes heroZoomIn { from { transform: scale(1) } to { transform: scale(1.22) } }
+  @keyframes dotFill { from { width: 0% } to { width: 100% } }
+  input::placeholder { color: #9A9CA2; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</helmet>
+<div style="min-height:100vh;display:flex;justify-content:center;background:#EFEFEB">
+<div style="width:100%;max-width:960px;background:#EFEFEB;min-height:100vh;position:relative">
+
+  <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+  <div data-screen="home">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px 0">
+      <div style="font-family:'Zen Kaku Gothic New',sans-serif;font-weight:700;font-size:15px;letter-spacing:-0.04em;color:#14213A">京産大サークル名鑑</div>
+    </div>
+
+    <div style="padding:30px 20px 0">
+      <h1 style="margin:0;font-family:'Zen Kaku Gothic New',sans-serif;font-weight:700;font-size:48px;line-height:1.15;letter-spacing:-0.05em;color:#14213A;display:flex;flex-direction:column">
+        <span style="animation:lineUp 480ms cubic-bezier(0.16,1,0.3,1) both;animation-delay:0ms">京産大の</span>
+        <span style="animation:lineUp 480ms cubic-bezier(0.16,1,0.3,1) both;animation-delay:80ms">サークル、</span>
+        <span style="animation:lineUp 480ms cubic-bezier(0.16,1,0.3,1) both;animation-delay:160ms">全部ここに。</span>
+      </h1>
+      <p style="margin:20px 0 0;font-size:15px;line-height:1.8;color:#6B7484;animation:lineUp 480ms cubic-bezier(0.16,1,0.3,1) both;animation-delay:260ms">158団体を、活動曜日と年会費から探せます。</p>
+    </div>
+
+    <div style="padding:24px 20px 0">
+      <div style="{{ searchWrap }}">
+        <input type="text" value="{{ q }}" onChange="{{ onQuery }}" placeholder="団体名やジャンルで検索" style="width:100%;height:50px;border:0;outline:none;background:transparent;padding:0 16px;font-family:'Noto Sans JP',sans-serif;font-size:15px;color:#14213A" />
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;padding:26px 20px 0">
+      <sc-for list="{{ coverRows }}" as="row" hint-placeholder-count="4">
+        <div style="{{ row.style }}">
+          <sc-for list="{{ row.tiles }}" as="t" hint-placeholder-count="2">
+            <div onClick="{{ t.open }}" style="{{ t.wrapStyle }}">
+              <div style="{{ t.clipStyle }}">
+                <div data-photo="1" style="{{ t.photoStyle }}" style-hover="filter:brightness(1) saturate(1);transform:scale(1.03)">
+                  <img src="{{ t.thumbSrc }}" alt="" style="{{ t.thumbStyle }}" />
+                  <div style="{{ t.slotWrap }}">
+                    <image-slot id="{{ t.slotId }}" shape="rect" fit="cover" placeholder=""></image-slot>
+                  </div>
+                </div>
+                <div style="{{ t.veil }}"></div>
+                <div style="{{ t.nameStyle }}">{{ t.name }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-for>
+    </div>
+
+    <div ref="{{ listRef }}" style="padding:44px 20px 120px">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;padding-bottom:18px">
+        <div>
+          <div style="display:flex;align-items:center;gap:7px">
+            <div style="width:9px;height:9px;border-radius:5px;border:1px solid #6B7484"></div>
+            <div style="font-size:11px;letter-spacing:0.14em;font-weight:500;color:#6B7484">団体をさがす</div>
+          </div>
+          <h2 style="margin:6px 0 0;font-family:'Schibsted Grotesk',sans-serif;font-weight:700;font-size:32px;letter-spacing:-0.03em;line-height:1.1;color:#14213A">CIRCLES</h2>
+        </div>
+        <div style="{{ countStyle }}">{{ countLabel }}</div>
+      </div>
+
+      <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:56px 8px;text-align:center">
+          <div style="font-family:'Zen Kaku Gothic New',sans-serif;font-weight:700;font-size:18px;letter-spacing:-0.04em;color:#14213A">条件に合う団体がありません</div>
+          <div style="font-size:14px;color:#6B7484;margin-top:10px;line-height:1.8">曜日か会費の条件をゆるめてみてください。</div>
+        </div>
+      </sc-if>
+
+      <div style="display:flex;flex-direction:column;gap:26px">
+        <sc-for list="{{ list }}" as="g" hint-placeholder-count="3">
+          <div data-org="{{ g.id }}" data-reveal="1" onClick="{{ g.open }}" style="{{ g.cardStyle }}">
+            <div style="{{ g.clipStyle }}">
+              <div data-photo="1" style="{{ g.photoStyle }}" style-hover="filter:brightness(1) saturate(1);transform:scale(1.03)">
+                <img src="{{ g.thumbSrc }}" alt="" style="{{ g.thumbStyle }}" />
+                <div style="{{ g.slotWrap }}">
+                  <image-slot id="{{ g.slotId }}" shape="rect" fit="cover" placeholder=""></image-slot>
+                </div>
+              </div>
+              <div style="{{ g.veil }}"></div>
+              <div style="{{ g.nameStyle }}">{{ g.name }}</div>
+            </div>
+            <div style="padding:18px 20px 20px">
+              <div style="display:flex;gap:4px">
+                <sc-for list="{{ g.cells }}" as="c" hint-placeholder-count="7">
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+                    <div style="font-size:10px;line-height:1;color:#6B7484">{{ c.label }}</div>
+                    <div style="{{ c.style }}"></div>
+                  </div>
+                </sc-for>
+              </div>
+              <sc-if value="{{ g.daysUnknown }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:11px;color:#6B7484;margin-top:7px">活動曜日 未確認</div>
+              </sc-if>
+              <div style="display:flex;align-items:center;gap:16px;margin-top:14px;flex-wrap:wrap">
+                <div style="{{ g.feeStyle }}">{{ g.feeText }}</div>
+                <div style="{{ g.membersStyle }}">{{ g.membersText }}</div>
+                <div style="font-size:13px;color:#14213A">{{ g.multiText }}</div>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="position:sticky;bottom:0;padding:12px 20px 20px;background:linear-gradient(to top,#EFEFEB 62%,rgba(239,239,235,0))">
+      <div onClick="{{ openSheet }}" style="{{ filterBtnStyle }}">
+        <span>絞り込み</span>
+        <span>•</span>
+        <sc-if value="{{ hasFilters }}" hint-placeholder-val="{{ false }}">
+          <span style="{{ badgeStyle }}">{{ filterCount }}</span>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isDetail }}" hint-placeholder-val="{{ false }}">
+  <div style="position:relative">
+
+    <div ref="{{ navRef }}" style="position:fixed;top:0;left:0;right:0;z-index:12;height:52px;background:#EFEFEB;border-bottom:1px solid #E2E2DB;display:flex;align-items:center;transform:translateY(-100%);transition:transform 240ms cubic-bezier(.2,.7,.3,1)">
+      <div style="width:100%;max-width:960px;margin:0 auto;display:flex;align-items:center;gap:10px;padding:0 20px">
+        <div onClick="{{ back }}" style="display:flex;align-items:center;height:44px;font-size:13px;color:#14213A;cursor:pointer;flex:0 0 auto">⟨ 一覧</div>
+        <div style="flex:1;min-width:0;font-size:14px;color:#14213A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center">{{ detail.shortName }}</div>
+        <div style="flex:0 0 44px"></div>
+      </div>
+    </div>
+
+    <div onPointerDown="{{ onDragStart }}" onPointerMove="{{ onDragMove }}" onPointerUp="{{ onDragEnd }}" onPointerCancel="{{ onDragEnd }}" style="position:sticky;top:0;height:100dvh;overflow:hidden;z-index:0;touch-action:pan-y">
+      <div ref="{{ heroRef }}" style="{{ detail.heroPhoto }}">
+        <sc-if value="{{ detail.noSlides }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;inset:0;opacity:0">
+            <image-slot id="{{ detail.firstSlotId }}" shape="rect" fit="cover" placeholder=""></image-slot>
+          </div>
+        </sc-if>
+        <sc-for list="{{ detail.slides }}" as="sl" hint-placeholder-count="1">
+          <div style="{{ sl.style }}">
+            <img src="{{ sl.src }}" alt="" style="{{ sl.imgStyle }}" />
+            <sc-if value="{{ sl.isSlot }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ sl.slotWrap }}">
+                <image-slot id="{{ sl.slotId }}" shape="rect" fit="cover" placeholder=""></image-slot>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+      <div style="position:absolute;inset:0;pointer-events:none;background:linear-gradient(to top, rgba(27,26,24,.86) 0%, rgba(27,26,24,.34) 42%, rgba(27,26,24,.06) 68%, rgba(27,26,24,.22) 100%)"></div>
+
+      <div onClick="{{ back }}" style="position:absolute;left:20px;top:20px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#FFFFFF;cursor:pointer;z-index:3">⟨</div>
+
+      <div style="position:absolute;left:0;right:0;bottom:0;padding:0 20px 56px;z-index:2;pointer-events:none">
+        <div style="{{ detail.dotsStyle }}">
+          <sc-for list="{{ detail.dots }}" as="d" hint-placeholder-count="2">
+            <div onClick="{{ d.onClick }}" style="{{ d.wrap }}"><div style="{{ d.style }}"><div style="{{ d.fill }}"></div></div></div>
+          </sc-for>
+          <div onClick="{{ detail.togglePlay }}" style="{{ detail.playStyle }}">{{ detail.playGlyph }}</div>
+        </div>
+        <div style="{{ detail.metaStyle }}">{{ detail.metaText }}</div>
+        <div style="{{ detail.heroNameStyle }}">{{ detail.shortName }}</div>
+        <div style="{{ detail.heroFormalStyle }}">{{ detail.name }}</div>
+      </div>
+
+      <div ref="{{ cueRef }}" style="position:absolute;left:0;right:0;bottom:20px;display:flex;flex-direction:column;align-items:center;gap:6px;opacity:0;transition:opacity 400ms ease-out;pointer-events:none;z-index:2">
+        <div style="font-size:10px;letter-spacing:0.2em;color:rgba(255,255,255,.6)">SCROLL</div>
+        <div style="width:18px;height:10px;animation:cueBob 2400ms ease-in-out infinite">
+          <div style="width:11px;height:1.5px;background:rgba(255,255,255,.7);transform:rotate(35deg);transform-origin:left center;position:absolute"></div>
+          <div style="width:11px;height:1.5px;background:rgba(255,255,255,.7);transform:rotate(-35deg) translateX(-11px);transform-origin:right center;position:absolute;left:18px"></div>
+        </div>
+      </div>
+    </div>
+
+    <div ref="{{ sheetRef }}" style="position:relative;z-index:5;background:#EFEFEB;border-radius:16px 16px 0 0;padding:0 0 40px">
+      <div style="display:flex;justify-content:center;padding:10px 0 0">
+        <div style="width:36px;height:4px;border-radius:2px;background:#E2E2DB"></div>
+      </div>
+
+      <div style="padding:22px 20px 0">
+<div style="font-family:'Zen Kaku Gothic New',sans-serif;font-weight:700;font-size:20px;line-height:1.6;letter-spacing:-0.02em;color:#14213A;text-wrap:pretty">{{ detail.oneLiner }}</div>
+        <div style="{{ detail.dayCardStyle }}">
+          <div style="font-size:11px;letter-spacing:0.14em;font-weight:500;color:#6B7484">活動日</div>
+          <div style="display:flex;flex-wrap:wrap;align-items:baseline;margin-top:12px">
+            <sc-for list="{{ detail.dayLine }}" as="p" hint-placeholder-count="2">
+              <div style="{{ p.style }}">{{ p.text }}</div>
+            </sc-for>
+          </div>
+          <div style="{{ detail.timeStyle }}">{{ detail.timeText }}</div>
+          <div style="height:1px;background:#E2E2DB;margin:16px 0 0"></div>
+          <div style="font-size:13px;color:#6B7484;margin-top:14px;line-height:1.7">{{ detail.placeDual }}</div>
+        </div>
+      </div>
+
+      <div style="padding:40px 20px 0">
+        <div style="display:flex;align-items:center;gap:7px">
+          <div style="width:9px;height:9px;border-radius:5px;border:1px solid #6B7484"></div>
+          <div style="font-size:11px;letter-spacing:0.14em;font-weight:500;color:#6B7484">数字で見る</div>
+        </div>
+        <div style="font-family:'Schibsted Grotesk',sans-serif;font-weight:700;font-size:32px;letter-spacing:-0.03em;line-height:1.1;color:#14213A;margin-top:6px">NUMBERS</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px">
+          <sc-for list="{{ detail.numbers }}" as="n" hint-placeholder-count="4">
+            <div style="{{ detail.numCardStyle }}">
+              <div style="{{ n.valueStyle }}">{{ n.value }}</div>
+              <div style="font-size:11px;letter-spacing:0.14em;font-weight:500;color:#6B7484;margin-top:10px">{{ n.label }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size:12px;color:#6B7484;margin-top:12px;line-height:1.8;text-wrap:pretty">{{ detail.extraCost }}</div>
+      </div>
+
+      <div style="padding:40px 20px 0">
+        <div style="display:flex;align-items:center;gap:7px">
+          <div style="width:9px;height:9px;border-radius:5px;border:1px solid #6B7484"></div>
+          <div style="font-size:11px;letter-spacing:0.14em;font-weight:500;color:#6B7484">この団体について</div>
+        </div>
+        <div style="font-family:'Schibsted Grotesk',sans-serif;font-weight:700;font-size:32px;letter-spacing:-0.03em;line-height:1.1;color:#14213A;margin-top:6px">ABOUT</div>
+        <div style="{{ detail.aboutCardStyle }}">
+          <sc-for list="{{ detail.about }}" as="p" hint-placeholder-count="2">
+            <div style="font-size:15px;line-height:1.85;letter-spacing:0.02em;color:#14213A;text-wrap:pretty">{{ p.text }}</div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="padding:40px 20px 0">
+        <div style="display:flex;align-items:center;gap:7px">
+          <div style="width:9px;height:9px;border-radius:5px;border:1px solid #6B7484"></div>
+          <div style="font-size:11px;letter-spacing:0.14em;font-weight:500;color:#6B7484">代表からの一言</div>
+        </div>
+        <div style="font-family:'Schibsted Grotesk',sans-serif;font-weight:700;font-size:32px;letter-spacing:-0.03em;line-height:1.1;color:#14213A;margin-top:6px">VOICE</div>
+        <div style="{{ detail.aboutCardStyle }}">
+          <div style="border-left:2px solid #14213A;padding-left:14px;font-size:15px;line-height:1.85;letter-spacing:0.02em;color:#14213A;text-wrap:pretty">{{ detail.voice }}</div>
+          <div style="font-size:12px;color:#6B7484;text-align:right">代表（3年）</div>
+        </div>
+      </div>
+
+      <div style="padding:40px 20px 0">
+        <div style="display:flex;align-items:center;gap:7px">
+          <div style="width:9px;height:9px;border-radius:5px;border:1px solid #6B7484"></div>
+          <div style="font-size:11px;letter-spacing:0.14em;font-weight:500;color:#6B7484">次の新歓</div>
+        </div>
+        <div style="font-family:'Schibsted Grotesk',sans-serif;font-weight:700;font-size:32px;letter-spacing:-0.03em;line-height:1.1;color:#14213A;margin-top:6px">WELCOME</div>
+        <div style="{{ detail.aboutCardStyle }}">
+          <div style="{{ detail.welcome.badgeStyle }}">{{ detail.welcome.badge }}</div>
+          <div style="{{ detail.welcome.dateStyle }}">{{ detail.welcome.date }}</div>
+          <div style="font-size:14px;line-height:1.8;letter-spacing:0.02em;color:#14213A;text-wrap:pretty">{{ detail.welcome.what }}</div>
+          <sc-if value="{{ detail.welcome.hasButton }}" hint-placeholder-val="{{ true }}">
+            <div style="{{ detail.welcome.btnStyle }}">詳しく見る •</div>
+          </sc-if>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;padding:24px 20px 0;flex-wrap:wrap">
+        <sc-for list="{{ detail.sns }}" as="s" hint-placeholder-count="3">
+          <div style="{{ s.style }}">{{ s.label }}</div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="position:relative;z-index:5;background:#1B1A18;padding:40px 20px 44px;display:flex;flex-direction:column;gap:16px">
+      <div style="font-size:13px;line-height:1.85;letter-spacing:0.02em;color:rgba(255,255,255,.78);text-wrap:pretty">掲載内容は運営が団体に聞き取って作成し、公開前に団体へ確認しています。</div>
+      <div style="font-size:11px;color:rgba(255,255,255,.6)">2026年9月 取材</div>
+      <a href="#" style="font-size:12px;color:#FFFFFF;text-decoration:underline;width:max-content">情報の修正・取り下げはこちら</a>
+      <div style="font-size:11px;color:rgba(255,255,255,.5)">京産大サークル名鑑 2026</div>
+    </div>
+
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ sheetOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;display:flex;justify-content:center;align-items:flex-end;z-index:20">
+    <div onClick="{{ closeSheet }}" style="position:absolute;inset:0;background:rgba(20,22,26,0.42)"></div>
+    <div style="position:relative;width:100%;max-width:960px;background:#EFEFEB;max-height:88vh;display:flex;flex-direction:column">
+      <div style="padding:18px 20px 14px;display:flex;align-items:center;justify-content:space-between">
+        <div style="font-family:'Zen Kaku Gothic New',sans-serif;font-weight:700;font-size:18px;letter-spacing:-0.04em;color:#14213A">絞り込み</div>
+        <div onClick="{{ closeSheet }}" style="font-size:13px;color:#6B7484;cursor:pointer;padding:8px 4px">閉じる</div>
+      </div>
+
+      <div style="overflow-y:auto;padding:6px 20px 22px">
+        <div style="font-family:'Zen Kaku Gothic New',sans-serif;font-weight:700;font-size:14px;color:#14213A;letter-spacing:-0.04em">空いている曜日</div>
+        <div style="display:flex;gap:6px;margin-top:12px">
+          <sc-for list="{{ dayBtns }}" as="d" hint-placeholder-count="7">
+            <div onClick="{{ d.onClick }}" style="{{ d.style }}">{{ d.label }}</div>
+          </sc-for>
+        </div>
+
+        <div style="font-family:'Zen Kaku Gothic New',sans-serif;font-weight:700;font-size:14px;color:#14213A;letter-spacing:-0.04em;margin-top:26px">区分</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+          <sc-for list="{{ catChips }}" as="c" hint-placeholder-count="4">
+            <div onClick="{{ c.onClick }}" style="{{ c.style }}">{{ c.label }}</div>
+          </sc-for>
+        </div>
+
+        <div style="font-family:'Zen Kaku Gothic New',sans-serif;font-weight:700;font-size:14px;color:#14213A;letter-spacing:-0.04em;margin-top:26px">ジャンル</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+          <sc-for list="{{ genreChips }}" as="c" hint-placeholder-count="7">
+            <div onClick="{{ c.onClick }}" style="{{ c.style }}">
+              <div style="{{ c.dot }}"></div>
+              <span>{{ c.label }}</span>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="font-family:'Zen Kaku Gothic New',sans-serif;font-weight:700;font-size:14px;color:#14213A;letter-spacing:-0.04em;margin-top:26px">年会費</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+          <sc-for list="{{ feeChips }}" as="c" hint-placeholder-count="5">
+            <div onClick="{{ c.onClick }}" style="{{ c.style }}">{{ c.label }}</div>
+          </sc-for>
+        </div>
+
+        <div style="margin-top:26px;border-top:1px solid #E2E2DB">
+          <div onClick="{{ toggleBeginner }}" style="display:flex;align-items:center;justify-content:space-between;height:54px;border-bottom:1px solid #E2E2DB;cursor:pointer">
+            <div style="font-size:14px;color:#14213A">初心者がいる団体だけ</div>
+            <div style="{{ beginnerTrack }}"><div style="{{ beginnerKnob }}"></div></div>
+          </div>
+          <div onClick="{{ toggleMulti }}" style="display:flex;align-items:center;justify-content:space-between;height:54px;border-bottom:1px solid #E2E2DB;cursor:pointer">
+            <div style="font-size:14px;color:#14213A">掛け持ちできる団体だけ</div>
+            <div style="{{ multiTrack }}"><div style="{{ multiKnob }}"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="padding:12px 20px 20px;display:flex;gap:10px;align-items:center;background:#EFEFEB">
+        <div onClick="{{ clearFilters }}" style="height:52px;padding:0 16px;display:flex;align-items:center;justify-content:center;font-size:13px;color:#6B7484;cursor:pointer">条件をクリア</div>
+        <div onClick="{{ closeSheet }}" style="{{ applyBtnStyle }}">{{ resultLabel }}</div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:430,&quot;height&quot;:932}}">
+class Component extends DCLogic {
+  DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+  DAY_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
+  EASE = "cubic-bezier(0.16,1,0.3,1)";
+  GENRE_COLORS = {
+    "球技": "#1F7A5A", "武道": "#363B45", "音楽": "#3A55A8", "文化・創作": "#6E4A8E",
+    "ボランティア": "#147C86", "学術・ビジネス": "#8A6A1F", "その他": "#6B665E"
+  };
+  CATS = ["体育会", "文化団体連盟", "届出団体", "委員会・その他"];
+  GENRES = ["球技", "武道", "音楽", "文化・創作", "ボランティア", "学術・ビジネス", "その他"];
+  FEES = ["0円", "〜3,000円", "〜10,000円", "10,000円〜", "指定なし"];
+  PHOTO = "#40434A";
+  TIMES = { c00: "18:00–20:00", c01: "18:00–20:00", c02: "18:30–21:30", c03: "17:00–20:00", c04: "16:30–19:30", c06: "18:30–20:30", c07: "12:20–13:50", c08: "13:00–17:00" };
+  SHADOW = "0 1px 2px rgba(20,33,58,.04), 0 10px 28px rgba(20,33,58,.06)";
+  COVER_ROWS = [
+    { count: 1, cols: "1fr", aspect: "3 / 2" },
+    { count: 2, cols: "1.75fr 1fr", aspect: "16 / 11" },
+    { count: 2, cols: "1fr 2.1fr", aspect: "16 / 8" },
+    { count: 2, cols: "1.3fr 1fr", aspect: "16 / 13" }
+  ];
+
+  orgs = [
+    { id: "c00", short_name: "京産大起業部", name: "京都産業大学 起業部", category: "届出団体", genre: "学術・ビジネス", one_liner: "事業をつくりたい学生が集まっています。", active_days: [3], frequency_per_week: 1, hours_per_session: 2, place: "学内（要確認）", annual_fee: 0, extra_cost_note: null, member_count: 14, first_year_count: null, gender_ratio: "9:5", beginner_count: 14, multi_club_ok: true, description: "事業をつくりたい学生が集まって、アイデアの検証からピッチ、実際の立ち上げまでを一緒に進めています。学部・学年は問いません。ビジネスの知識がない状態から始めたメンバーがほとんどです。", next_recruit: "随時", sns: { instagram: null, x: null, website: null }, photos: [], tile_size: "L", real: true },
+    { id: "c01", short_name: "バスケットボールサークル コルク", name: "京都産業大学バスケットボールサークル コルク", category: "届出団体", genre: "球技", one_liner: "経験者も初めての人も、同じコートで気楽に。", active_days: [1, 3], frequency_per_week: 2, hours_per_session: 2, place: "第2体育館", annual_fee: 3000, extra_cost_note: "夏合宿 年1回 8,000円", member_count: 42, first_year_count: 12, gender_ratio: "6:4", beginner_count: 28, multi_club_ok: true, description: "週2回、月曜と水曜の夜に第2体育館で活動しています。ガチガチに練習するというより、体を動かしたい人が集まって試合をする雰囲気です。参加は自由で、来られない日があっても問題ありません。夏に一度合宿があります。", next_recruit: "4月上旬（後期からの参加も受け付けています）", sns: { instagram: "https://example.com/", x: null, website: null }, photos: ["photo-1", "photo-2"], tile_size: "M" },
+    { id: "c02", short_name: "アカペラサークル ひとふで", name: "京都産業大学アカペラサークル ひとふで", category: "届出団体", genre: "音楽", one_liner: "楽器を持たずに、声だけでバンドを組みます。", active_days: [2, 5], frequency_per_week: 2, hours_per_session: 3, place: "課外活動棟 3階", annual_fee: 6000, extra_cost_note: "ライブ出演時の会場費 1回 2,000円程度", member_count: 35, first_year_count: 9, gender_ratio: "4:6", beginner_count: 20, multi_club_ok: true, description: "5〜6人のバンドを組んで、学内外のライブに出ています。半年ごとにバンドを組み替えるので、いろいろな人と歌えます。音楽経験がない人も半分以上います。", next_recruit: "4月（10月にも追加募集あり）", sns: { instagram: "https://example.com/", x: "https://example.com/", website: null }, photos: ["photo-1", "photo-2", "photo-3"], tile_size: "M" },
+    { id: "c03", short_name: "弓道部", name: "京都産業大学体育会弓道部", category: "体育会", genre: "武道", one_liner: "全員が大学から始めた、初心者だけの部です。", active_days: [1, 2, 3, 4, 5], frequency_per_week: 5, hours_per_session: 3, place: "弓道場", annual_fee: 24000, extra_cost_note: "道着・弓具一式 初年度 40,000円程度", member_count: 31, first_year_count: 6, gender_ratio: "5:5", beginner_count: 25, multi_club_ok: false, description: "平日は毎日、放課後に弓道場で稽古しています。ほぼ全員が大学から弓道を始めています。防具や道具は初年度にまとめて揃える必要があります。リーグ戦を目標に活動しています。", next_recruit: "4月のみ", sns: { instagram: "https://example.com/", x: null, website: "https://example.com/" }, photos: ["photo-1"], tile_size: "S" },
+    { id: "c04", short_name: "ボードゲーム研究会 さいの目", name: "京都産業大学ボードゲーム研究会 さいの目", category: "届出団体", genre: "文化・創作", one_liner: "毎週木曜、空き教室でひたすら遊んでいます。", active_days: [4], frequency_per_week: 1, hours_per_session: 3, place: "10号館 教室（週により変動）", annual_fee: 0, extra_cost_note: null, member_count: 24, first_year_count: 8, gender_ratio: "8:2", beginner_count: 24, multi_club_ok: true, description: "木曜の午後に集まって、持ち寄ったボードゲームを遊んでいます。会費はありません。全員がルールを知らないところから始めているので、初めてでも問題ありません。出入りは自由です。", next_recruit: "随時", sns: { instagram: "https://example.com/", x: null, website: null }, photos: [], tile_size: "S" },
+    { id: "c05", short_name: "写真同好会 ひかりぐみ", name: "京都産業大学写真同好会 ひかりぐみ", category: "届出団体", genre: "文化・創作", one_liner: "月に2回くらい、京都のどこかに撮りに行きます。", active_days: null, frequency_per_week: null, hours_per_session: null, place: "学外（撮影地は毎回変わります）", annual_fee: 2000, extra_cost_note: "撮影地までの交通費は自己負担", member_count: 18, first_year_count: 4, gender_ratio: null, beginner_count: 15, multi_club_ok: true, description: "決まった曜日はなく、月に2回ほど日程を決めて撮影に出かけます。スマホで撮っている人もいます。神山祭で写真展を開いています。", next_recruit: "4月・10月", sns: { instagram: "https://example.com/", x: null, website: null }, photos: ["photo-1"], tile_size: "M" },
+    { id: "c06", short_name: "フットサル ソレイユ", name: "京都産業大学フットサルサークル ソレイユ", category: "届出団体", genre: "球技", one_liner: "水曜の夜と土曜の昼、人数が多いので誰かしらいます。", active_days: [3, 6], frequency_per_week: 2, hours_per_session: 2, place: "グラウンド／学外コート", annual_fee: 4000, extra_cost_note: "学外コート利用時 1回 500円", member_count: 56, first_year_count: 15, gender_ratio: "7:3", beginner_count: 30, multi_club_ok: true, description: "学内で人数の多いサークルのひとつです。水曜の夜と土曜の昼に活動していて、どちらか片方だけの参加でも大丈夫です。経験者と未経験者が半々くらいで、試合はレベルを分けています。", next_recruit: "4月（後期の追加募集も検討中）", sns: { instagram: "https://example.com/", x: "https://example.com/", website: null }, photos: ["photo-1", "photo-2"], tile_size: "M" },
+    { id: "c07", short_name: "手話サークル てのひら", name: "京都産業大学手話サークル てのひら", category: "届出団体", genre: "ボランティア", one_liner: "火曜の昼休みに、手話を教えあっています。", active_days: [2], frequency_per_week: 1, hours_per_session: 1.5, place: "課外活動棟 1階", annual_fee: null, extra_cost_note: null, member_count: 21, first_year_count: 7, gender_ratio: "3:7", beginner_count: 21, multi_club_ok: true, description: "火曜の昼休みに集まって手話を練習しています。学外のイベントで通訳の手伝いをすることもあります。全員が初心者から始めています。", next_recruit: "随時", sns: { instagram: null, x: null, website: null }, photos: [], tile_size: "S" },
+    { id: "c08", short_name: "神山ウインドアンサンブル", name: "京都産業大学神山ウインドアンサンブル", category: "文化団体連盟", genre: "音楽", one_liner: "年2回の定期演奏会に向けて、週3回合奏します。", active_days: [3, 6, 0], frequency_per_week: 3, hours_per_session: 4, place: "課外活動棟 4階 音楽室", annual_fee: 12000, extra_cost_note: "夏合宿 年1回 15,000円、楽器貸出あり", member_count: 68, first_year_count: 14, gender_ratio: "4:6", beginner_count: null, multi_club_ok: false, description: "水曜・土曜・日曜に合奏を行い、年2回の定期演奏会を目標に活動しています。楽器は団体の備品を借りられます。掛け持ちは活動量の関係で難しいです。", next_recruit: "4月のみ", sns: { instagram: "https://example.com/", x: "https://example.com/", website: "https://example.com/" }, photos: ["photo-1"], tile_size: "S" }
+  ];
+
+  constructor(props) {
+    super(props);
+    const shuffle = a => { const r = a.slice(); for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [r[i], r[j]] = [r[j], r[i]]; } return r; };
+    const rest = this.orgs.filter(o => o.id !== "c00").map(o => o.id);
+    const order = ["c00"].concat(shuffle(rest));
+    this.listRef = React.createRef();
+    this.navRef = React.createRef();
+    this.heroRef = React.createRef();
+    this.cueRef = React.createRef();
+    this.sheetRef = React.createRef();
+    this._rects = {};
+    this.state = {
+      screen: "home", detailId: "c00", sheetOpen: false,
+      order,
+      cover: ["c00"].concat(shuffle(rest).slice(0, 6)),
+      visible: order.slice(),
+      leaving: [],
+      q: "",
+      slide: 0, autoplay: true, heroVisible: true, filled: {}, dragX: 0,
+      days: [], cats: [], genres: [], fee: "指定なし", beginner: false, multi: false
+    };
+  }
+
+  get reduced() {
+    return typeof window !== "undefined" && window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  componentDidMount() {
+    if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+    this.observe();
+    this.scheduleSlotSync();
+    this._slotPoll = setInterval(() => this.syncSlots(), 1500);
+    this._onScroll = () => this.driveHero();
+    window.addEventListener("scroll", this._onScroll, { passive: true });
+    this._onVis = () => {
+      this._hidden = document.hidden;
+      if (document.hidden) clearTimeout(this._slideT); else this.scheduleSlide();
+    };
+    document.addEventListener("visibilitychange", this._onVis);
+  }
+
+  componentDidUpdate(prevProps, prevState) {
+    this.flip();
+    this.observe();
+    if (prevState && prevState.screen !== this.state.screen) {
+      this.scheduleSlotSync();
+      this.forceTop();
+      this._cueShown = false;
+      clearTimeout(this._cueT);
+      if (this.state.screen === "detail") {
+        this._slideShown = undefined;
+        this.setState({ slide: 0, autoplay: true, heroVisible: true }, () => this.scheduleSlide());
+        this.driveHero();
+        if (!this.reduced) {
+          this._cueT = setTimeout(() => {
+            if (this.cueRef.current && !this._cueShown) this.cueRef.current.style.opacity = "1";
+          }, 2600);
+        }
+      }
+    }
+  }
+
+  componentWillUnmount() {
+    this.clearGhosts();
+    clearTimeout(this._ghostT);
+    clearTimeout(this._ghostFadeT);
+    clearTimeout(this._slideT);
+    document.removeEventListener("visibilitychange", this._onVis);
+    clearInterval(this._slotPoll);
+    clearTimeout(this._leaveT);
+    clearTimeout(this._cueT);
+    window.removeEventListener("scroll", this._onScroll);
+  }
+
+  // Photo stays put and sinks under the rising sheet; nav slides in when the
+  // sheet reaches the top.
+  driveHero() {
+    if (this.state.screen !== "detail") return;
+    const y = window.scrollY || 0;
+    const vh = window.innerHeight || 1;
+    const p = Math.min(1, Math.max(0, y / vh));
+    const hero = this.heroRef.current;
+    if (hero) hero.style.filter = "brightness(" + (1 - p * 0.45).toFixed(3) + ")";
+    if (hero && p > 0) hero.style.transformOrigin = "50% 40%";
+    const nav = this.navRef.current;
+    if (nav) nav.style.transform = p > 0.92 ? "translateY(0)" : "translateY(-100%)";
+    const visible = p < 0.5;
+    if (visible !== this.state.heroVisible) {
+      this.setState({ heroVisible: visible }, () => {
+        if (visible) this.scheduleSlide(); else clearTimeout(this._slideT);
+      });
+    }
+    if (y > 0 && !this._cueShown) {
+      this._cueShown = true;
+      clearTimeout(this._cueT);
+      if (this.cueRef.current) this.cueRef.current.style.opacity = "0";
+    }
+  }
+
+  // §5-1: the photo the user pressed grows into the full-screen hero, so the
+  // page reads as zooming in rather than swapping.
+  openDetail(id, e) {
+    this.clearGhosts();
+    if (this.reduced || !e || !e.currentTarget) {
+      this.setState({ screen: "detail", detailId: id });
+      return;
+    }
+    const src = e.currentTarget.querySelector("[data-photo]");
+    if (!src) { this.setState({ screen: "detail", detailId: id }); return; }
+    const r = src.getBoundingClientRect();
+    const ghost = src.cloneNode(true);
+    ghost.setAttribute("data-ghost", "1");
+    ghost.removeAttribute("data-photo");
+    // a cloned image-slot must never share an id with the live one
+    ghost.querySelectorAll("[id]").forEach(n => n.removeAttribute("id"));
+    Object.assign(ghost.style, {
+      position: "fixed", left: r.left + "px", top: r.top + "px",
+      width: r.width + "px", height: r.height + "px", margin: "0",
+      borderRadius: "16px", zIndex: "999", pointerEvents: "none",
+      transition: "none", filter: "brightness(1)", opacity: "1"
+    });
+    document.body.appendChild(ghost);
+    const host = e.currentTarget.closest("[data-screen]");
+    if (host) { host.style.transition = "opacity 120ms ease-out"; host.style.opacity = "0"; }
+
+    const vw = document.documentElement.clientWidth;
+    const vh = window.innerHeight;
+    const t0 = Date.now();
+    const dur = 900;
+    const ease = p => 1 - Math.pow(1 - p, 3);
+    clearInterval(this._ghostTween);
+    this._ghostTween = setInterval(() => {
+      const p = Math.min(1, (Date.now() - t0) / dur);
+      const k = ease(p);
+      ghost.style.left = (r.left * (1 - k)) + "px";
+      ghost.style.top = (r.top * (1 - k)) + "px";
+      ghost.style.width = (r.width + (vw - r.width) * k) + "px";
+      ghost.style.height = (r.height + (vh - r.height) * k) + "px";
+      ghost.style.borderRadius = (16 * (1 - k)) + "px";
+      if (p >= 1) clearInterval(this._ghostTween);
+    }, 16);
+
+    // teardown is driven by timers only — never by a setState callback
+    clearTimeout(this._ghostT);
+    clearTimeout(this._ghostFadeT);
+    this._ghostT = setTimeout(() => {
+      this.forceTop();
+      this.setState({ screen: "detail", detailId: id });
+      this.forceTop();
+      if (host) { host.style.opacity = ""; host.style.transition = ""; }
+      clearInterval(this._ghostTween);
+      const f0 = Date.now();
+      clearInterval(this._ghostFade);
+      this._ghostFade = setInterval(() => {
+        const q = Math.min(1, (Date.now() - f0) / 160);
+        ghost.style.opacity = String(1 - q);
+        if (q >= 1) clearInterval(this._ghostFade);
+      }, 16);
+      this._ghostFadeT = setTimeout(() => this.clearGhosts(), 220);
+    }, 900);
+    setTimeout(() => this.clearGhosts(), 2600);
+  }
+
+  clearGhosts() {
+    clearInterval(this._ghostTween);
+    clearInterval(this._ghostFade);
+    document.querySelectorAll("body > [data-ghost]").forEach(n => n.remove());
+  }
+
+  observe() {
+    if (this.reduced) {
+      document.querySelectorAll("[data-reveal]").forEach(el => { el.style.opacity = "1"; el.style.transform = "none"; });
+      return;
+    }
+    if (!("IntersectionObserver" in window)) return;
+    if (!this._io) {
+      this._io = new IntersectionObserver(entries => {
+        entries.forEach(e => {
+          if (!e.isIntersecting) return;
+          const el = e.target;
+          el.style.transition = "opacity 420ms " + this.EASE + ", transform 420ms " + this.EASE;
+          el.style.opacity = "1";
+          el.style.transform = "translateY(0)";
+          el.setAttribute("data-shown", "1");
+          this._io.unobserve(el);
+        });
+      }, { threshold: 0.06, rootMargin: "0px 0px -6% 0px" });
+    }
+    document.querySelectorAll("[data-reveal]:not([data-shown]):not([data-observed])").forEach(el => {
+      el.setAttribute("data-observed", "1");
+      el.style.opacity = "0";
+      el.style.transform = "translateY(24px)";
+      this._io.observe(el);
+    });
+  }
+
+  measure() {
+    this._rects = {};
+    document.querySelectorAll("[data-org]").forEach(el => {
+      this._rects[el.getAttribute("data-org")] = el.getBoundingClientRect().top;
+    });
+  }
+
+  flip() {
+    if (this.reduced || !this._pendingFlip) return;
+    this._pendingFlip = false;
+    document.querySelectorAll("[data-org]").forEach(el => {
+      const id = el.getAttribute("data-org");
+      const prev = this._rects[id];
+      if (prev === undefined) return;
+      const delta = prev - el.getBoundingClientRect().top;
+      if (!delta) return;
+      el.style.transition = "none";
+      el.style.transform = "translateY(" + delta + "px)";
+      requestAnimationFrame(() => {
+        el.style.transition = "transform 280ms " + this.EASE;
+        el.style.transform = "translateY(0)";
+      });
+    });
+  }
+
+  applyFilters(patch) {
+    this.measure();
+    this.setState(patch, () => {
+      const next = this.state.order.filter(id => this.passes(this.byId()[id]));
+      const cur = this.state.visible;
+      const gone = cur.filter(id => next.indexOf(id) < 0);
+      this._pendingFlip = true;
+      if (gone.length && !this.reduced) {
+        this.setState({ leaving: gone });
+        clearTimeout(this._leaveT);
+        this._leaveT = setTimeout(() => {
+          this.measure();
+          this._pendingFlip = true;
+          this.setState({ visible: next, leaving: [] });
+        }, 180);
+      } else {
+        this.setState({ visible: next, leaving: [] });
+      }
+    });
+  }
+
+  byId() { const m = {}; this.orgs.forEach(o => { m[o.id] = o; }); return m; }
+  genreColor(g) { return this.GENRE_COLORS[g] || this.GENRE_COLORS["その他"]; }
+  hasPhoto(o) { return (this.SRCS[o.id] || []).length > 0 || (o.photos && o.photos.length > 0); }
+  thumb(o) { const f = this.SRCS[o.id]; return f && f[0] ? f[0] : null; }
+  thumbStyle(o) {
+    const t = this.thumb(o);
+    return t
+      ? { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: t.pos, display: "block" }
+      : { display: "none" };
+  }
+  VOICES = {
+    c00: "アイデアがなくても大丈夫です。人の相談を聞いているうちに、自分のやりたいことが出てくる人が多いです。",
+    c01: "上手い下手より、来られる日に来てくれる人がありがたいです。試合に出たい人は出られます。",
+    c02: "楽譜が読めないところから始めた人が半分います。まずは声を出しに来てください。",
+    c03: "毎日あるので大変に見えますが、来られない日は言ってもらえれば大丈夫です。",
+    c04: "会費がないぶん、部室にあるゲームは全部誰かの持ち寄りです。増やしに来てください。",
+    c05: "撮る日は毎月みんなで決めています。スマホしか持っていない人も来ています。",
+    c06: "水曜だけ、土曜だけの参加でかまいません。人数が多いので誰かしらいます。",
+    c07: "手話をやったことがある人はほとんどいません。昼休みに覗きに来てください。",
+    c08: "楽器は借りられます。合奏の回数が多いので、そこだけ見てから決めてください。"
+  };
+  SRCS = {
+    c00: [
+      { src: "images/kigyobu-2.jpeg", pos: "50% 38%" },
+      { src: "images/kigyobu-1.jpeg", pos: "52% 30%" }
+    ]
+  };
+
+  FIRST_DELAY = 6000;
+  SLIDE_DELAY = 5000;
+
+  BROAD = { "球技": "運動系", "武道": "運動系", "音楽": "文化系", "文化・創作": "文化系", "ボランティア": "その他", "学術・ビジネス": "その他", "その他": "その他" };
+  // 募集状態は日程と別に持つ。日程が出せない団体でも「いま入れるか」は答える。
+  RECRUIT = { c00: "いつでも入れる", c01: "いつでも入れる", c02: "4月のみ", c03: "4月のみ", c04: "いつでも入れる", c05: "4月のみ", c06: "いつでも入れる", c07: "いつでも入れる", c08: "4月のみ" };
+
+  welcomeFor(d) {
+    const state = this.RECRUIT[d.id] || "募集していない";
+    const pill = { display: "inline-flex", alignItems: "center", height: 24, padding: "0 12px", borderRadius: 999, fontSize: 11, width: "max-content" };
+    const badgeStyle = state === "いつでも入れる"
+      ? Object.assign({}, pill, { background: "#14213A", color: "#FFFFFF" })
+      : state === "4月のみ"
+        ? Object.assign({}, pill, { color: "#14213A", boxShadow: "inset 0 0 0 1px #14213A" })
+        : Object.assign({}, pill, { color: "#6B7484", boxShadow: "inset 0 0 0 1px #6B7484" });
+    const hasDate = !!d.next_recruit && d.next_recruit !== "随時";
+    return {
+      badge: state, badgeStyle,
+      date: hasDate ? d.next_recruit : "次の新歓は未定",
+      dateStyle: this.num(22, hasDate ? "#14213A" : "#6B7484"),
+      what: hasDate ? "見学・体験の受け付けをしています。" : "決まりしだい、このページに載せます。",
+      hasButton: hasDate,
+      btnStyle: { height: 44, marginTop: 4, padding: "0 20px", borderRadius: 999, background: "#1B1A18", color: "#FFFFFF", fontSize: 13, display: "inline-flex", alignItems: "center", width: "max-content", cursor: "pointer" }
+    };
+  }
+
+  // 合計が必ず10になるよう丸め、1人でもいる側は0にしない。
+  genderCounts(o) {
+    if (!o.gender_ratio) return { text: "—" };
+    const p = o.gender_ratio.split(":").map(n => parseFloat(n));
+    if (p.length !== 2 || !(p[0] + p[1])) return { text: "—" };
+    const total = p[0] + p[1];
+    if (p[0] === 0) return { word: "女子のみ" };
+    if (p[1] === 0) return { word: "男子のみ" };
+    let m = Math.round(p[0] / total * 10);
+    if (m < 1) m = 1;
+    if (m > 9) m = 9;
+    return { text: m + " : " + (10 - m) };
+  }
+
+  broadCategory(o) { return this.BROAD[o.genre] || "その他"; }
+
+  slotId(o, n) {
+    const i = n || 0;
+    if (o.id === "c00" && i === 0) return "ksu3-kigyobu-photo";
+    return "ksu3-photo-" + o.id + (i ? "-" + (i + 1) : "");
+  }
+  slotWrap(o) {
+    return { position: "absolute", inset: 0, opacity: 0, transition: "opacity 200ms ease-out" };
+  }
+
+  // The detail page must always open on the cover photo, whatever offset the
+  // list was scrolled to. Height changes land over several frames, so reset
+  // across a few of them rather than once.
+  forceTop() {
+    const t = () => {
+      window.scrollTo(0, 0);
+      if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+      if (document.documentElement) document.documentElement.scrollTop = 0;
+      if (document.body) document.body.scrollTop = 0;
+    };
+    t();
+    [0, 16, 50, 120, 260, 500].forEach(ms => setTimeout(t, ms));
+    requestAnimationFrame(t);
+    requestAnimationFrame(() => requestAnimationFrame(t));
+  }
+
+  syncSlots() {
+    const filled = {};
+    document.querySelectorAll("image-slot").forEach(el => {
+      const root = el.shadowRoot;
+      const img = root ? root.querySelector("img") : null;
+      const isFilled = !!(img && img.getAttribute("src"));
+      const wrap = el.parentElement;
+      if (wrap) wrap.style.opacity = isFilled ? "1" : "0";
+      if (el.id) filled[el.id] = isFilled;
+    });
+    const cur = this.state.filled || {};
+    const changed = Object.keys(filled).some(k => cur[k] !== filled[k]) ||
+      Object.keys(cur).length !== Object.keys(filled).length;
+    if (changed) this.setState({ filled });
+  }
+
+  onDragStart(e) {
+    const o = this.byId()[this.state.detailId];
+    if (this.filledSlides(o).length < 2) return;
+    this._drag = { x: e.clientX, y: e.clientY, axis: null, dx: 0 };
+  }
+
+  onDragMove(e) {
+    if (!this._drag) return;
+    const dx = e.clientX - this._drag.x;
+    const dy = e.clientY - this._drag.y;
+    if (!this._drag.axis) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      this._drag.axis = Math.abs(dx) > Math.abs(dy) * 1.4 ? "x" : "y";
+      if (this._drag.axis === "y") { this._drag = null; return; }
+      this.stopAuto();
+    }
+    this._drag.dx = dx;
+    this.setState({ dragX: dx });
+  }
+
+  onDragEnd() {
+    if (!this._drag) return;
+    const dx = this._drag.dx;
+    const axis = this._drag.axis;
+    this._drag = null;
+    this.setState({ dragX: 0 });
+    if (axis !== "x") return;
+    const w = window.innerWidth || 1;
+    if (Math.abs(dx) > w * 0.2) this.goSlide(this.state.slide + (dx < 0 ? 1 : -1));
+  }
+
+  // --- hero slideshow -------------------------------------------------
+  slidesFor(o) {
+    const fixed = this.SRCS[o.id] || [];
+    const out = fixed.map((x, i) => ({ key: "src-" + o.id + "-" + i, src: x.src, pos: x.pos }));
+    const n = Math.min((o.photos || []).length, 8);
+    for (let i = 0; i < n; i++) {
+      const id = this.slotId(o, i);
+      if (out.length >= 8) break;
+      out.push({ key: id, slotId: id });
+    }
+    return out;
+  }
+
+  filledSlides(o) {
+    const f = this.state.filled || {};
+    return this.slidesFor(o).filter(x => x.src || f[x.slotId]);
+  }
+
+  autoOn(o) {
+    return !this.reduced && this.state.autoplay && this.state.heroVisible &&
+      !this._hidden && this.filledSlides(o).length > 1;
+  }
+
+  scheduleSlide() {
+    clearTimeout(this._slideT);
+    if (this.state.screen !== "detail") return;
+    const o = this.byId()[this.state.detailId];
+    if (!o || !this.autoOn(o)) return;
+    const first = this._slideShown === undefined;
+    this._slideShown = true;
+    this._slideStart = Date.now();
+    this._slideT = setTimeout(() => {
+      const ids = this.filledSlides(o);
+      if (!ids.length) return;
+      const cur = this.state.slide % ids.length;
+      this.setState({ slide: (cur + 1) % ids.length }, () => this.scheduleSlide());
+    }, first ? this.FIRST_DELAY : this.SLIDE_DELAY);
+  }
+
+  stopAuto() {
+    clearTimeout(this._slideT);
+    if (this.state.autoplay) this.setState({ autoplay: false });
+  }
+
+  goSlide(n) {
+    const o = this.byId()[this.state.detailId];
+    const ids = this.filledSlides(o);
+    if (ids.length < 2) return;
+    const next = ((n % ids.length) + ids.length) % ids.length;
+    clearTimeout(this._slideT);
+    this.setState({ slide: next, autoplay: false });
+  }
+
+  scheduleSlotSync() {
+    if (this._slotBatch) return;
+    this._slotBatch = true;
+    const times = [0, 120, 400, 1000, 2200];
+    times.forEach((t, i) => setTimeout(() => {
+      this.syncSlots();
+      if (i === times.length - 1) this._slotBatch = false;
+    }, t));
+  }
+
+  cellStyle(kind, i) {
+    const base = {
+      width: 26, height: 26, boxSizing: "border-box",
+      clipPath: "polygon(3px 0, calc(100% - 3px) 0, 100% 3px, 100% calc(100% - 3px), calc(100% - 3px) 100%, 3px 100%, 0 calc(100% - 3px), 0 3px)",
+      transition: "background-color 200ms " + this.EASE,
+      transitionDelay: (i * 40) + "ms"
+    };
+    if (kind === "match") return Object.assign(base, { backgroundColor: "#E8A33D" });
+    if (kind === "on") return Object.assign(base, { backgroundColor: "#14213A" });
+    if (kind === "hatch") return Object.assign(base, {
+      border: "1px solid #E2E2DB",
+      backgroundImage: "repeating-linear-gradient(45deg,#E2E2DB 0px,#E2E2DB 1px,transparent 1px,transparent 5px)"
+    });
+    return Object.assign(base, { border: "1px solid #E2E2DB" });
+  }
+
+  cellsFor(o) {
+    return this.DAY_ORDER.map((dayIdx, i) => {
+      let kind = "off";
+      if (!o.active_days) kind = "hatch";
+      else if (o.active_days.indexOf(dayIdx) >= 0) kind = this.state.days.indexOf(dayIdx) >= 0 ? "match" : "on";
+      return { label: this.DAY_LABELS[i], style: this.cellStyle(kind, i) };
+    });
+  }
+
+  num(size, color) {
+    return { fontFamily: "Outfit, sans-serif", fontWeight: 500, fontVariantNumeric: "tabular-nums", fontSize: size, color: color || "#14213A" };
+  }
+
+  feeText(o) { return o.annual_fee === null ? "未確認" : "¥" + o.annual_fee.toLocaleString() + "/年"; }
+  freqText(o) {
+    if (!o.frequency_per_week) return "不定期";
+    const h = o.hours_per_session;
+    return "週" + o.frequency_per_week + "回 / 1回" + (h % 1 === 0 ? h + "時間" : Math.floor(h) + "時間30分");
+  }
+  beginnerText(o) {
+    if (o.beginner_count === null) return "未確認";
+    if (o.beginner_count === o.member_count) return "全員が初心者スタート";
+    return o.beginner_count + "人が初心者スタート";
+  }
+  genderText(o) {
+    if (!o.gender_ratio) return "未確認";
+    const p = o.gender_ratio.split(":");
+    return "男 " + p[0] + " : 女 " + p[1];
+  }
+
+  passes(o) {
+    const st = this.state;
+    const q = (st.q || "").trim().toLowerCase();
+    if (q) {
+      const hay = (o.short_name + " " + o.name + " " + o.genre + " " + o.category).toLowerCase();
+      if (hay.indexOf(q) < 0) return false;
+    }
+    if (st.days.length && (!o.active_days || !st.days.some(d => o.active_days.indexOf(d) >= 0))) return false;
+    if (st.cats.length && st.cats.indexOf(o.category) < 0) return false;
+    if (st.genres.length && st.genres.indexOf(o.genre) < 0) return false;
+    if (st.fee !== "指定なし") {
+      if (o.annual_fee === null) return false;
+      if (st.fee === "0円" && o.annual_fee !== 0) return false;
+      if (st.fee === "〜3,000円" && o.annual_fee > 3000) return false;
+      if (st.fee === "〜10,000円" && o.annual_fee > 10000) return false;
+      if (st.fee === "10,000円〜" && o.annual_fee <= 10000) return false;
+    }
+    if (st.beginner && !o.beginner_count) return false;
+    if (st.multi && !o.multi_club_ok) return false;
+    return true;
+  }
+
+  toggleIn(key, v) {
+    const a = this.state[key].slice();
+    const i = a.indexOf(v);
+    if (i >= 0) a.splice(i, 1); else a.push(v);
+    this.applyFilters({ [key]: a });
+  }
+
+  chip(label, active, onClick, dotColor) {
+    const c = {
+      label, onClick,
+      style: {
+        display: "flex", alignItems: "center", gap: 7, padding: "10px 14px", minHeight: 44,
+        fontSize: 13, cursor: "pointer",
+        borderRadius: 999,
+        background: active ? "#14213A" : "#FFFFFF",
+        color: active ? "#FFFFFF" : "#14213A",
+        boxShadow: active ? "none" : "inset 0 0 0 1px #E2E2DB"
+      }
+    };
+    if (dotColor) c.dot = { width: 8, height: 8, borderRadius: 4, background: dotColor, flex: "0 0 8px" };
+    return c;
+  }
+
+  photoLayer(o, dim) {
+    const t = this.thumb(o);
+    return {
+      position: "absolute", inset: 0,
+      background: this.hasPhoto(o) && !t ? this.PHOTO : (t ? "#2A2E36" : this.genreColor(o.genre)),
+      filter: this.hasPhoto(o) ? "brightness(0.86) saturate(0.96)" : "brightness(0.92)",
+      transition: "filter 260ms " + this.EASE + ", transform 260ms " + this.EASE,
+      cursor: "pointer"
+    };
+  }
+
+  renderVals() {
+    const st = this.state;
+    const byId = this.byId();
+    const shownIds = st.visible;
+    const filteredCount = st.order.filter(id => this.passes(byId[id])).length;
+
+    // One shape for every tile; the puzzle comes from the row sizes, which are
+    // paired so each row is filled edge to edge with no leftover white.
+    const tileAt = (o, i) => ({
+      name: o.short_name, real: !!o.real, slotId: this.slotId(o), slotWrap: this.slotWrap(o),
+      open: e => this.openDetail(o.id, e),
+      wrapStyle: {
+        position: "relative", height: "100%", minWidth: 0,
+        animation: "tileOpen 520ms " + this.EASE + " both",
+        animationDelay: (340 + i * 60) + "ms"
+      },
+      clipStyle: {
+        position: "absolute", inset: 0, overflow: "hidden",
+        borderRadius: 16, display: "flex", alignItems: "flex-end"
+      },
+      photoStyle: this.photoLayer(o),
+      thumbSrc: (this.thumb(o) || {}).src || "",
+      thumbStyle: this.thumbStyle(o),
+      veil: this.hasPhoto(o)
+        ? { position: "absolute", left: 0, right: 0, bottom: 0, height: "55%", pointerEvents: "none", backgroundImage: "linear-gradient(to top, rgba(0,0,0,0.62), rgba(0,0,0,0))" }
+        : { display: "none" },
+      nameStyle: {
+        position: "relative", pointerEvents: "none", width: "100%", padding: 16,
+        fontFamily: "'Zen Kaku Gothic New',sans-serif", fontWeight: 700,
+        fontSize: i === 0 ? 26 : 16, lineHeight: 1.36, letterSpacing: "-0.04em", color: "#FFFFFF"
+      }
+    });
+
+    const coverOrgs = st.cover.map(id => byId[id]);
+    const coverRows = [];
+    let k = 0;
+    this.COVER_ROWS.forEach(spec => {
+      const tiles = [];
+      for (let n = 0; n < spec.count && k < coverOrgs.length; n++, k++) {
+        tiles.push(tileAt(coverOrgs[k], k));
+      }
+      if (tiles.length === spec.count) {
+        coverRows.push({
+          tiles,
+          style: { display: "grid", gridTemplateColumns: spec.cols, gap: 10, aspectRatio: spec.aspect }
+        });
+      }
+    });
+
+    const list = shownIds.map(id => byId[id]).map(o => {
+      const going = st.leaving.indexOf(o.id) >= 0;
+      return {
+        id: o.id, name: o.short_name, real: !!o.real, slotId: this.slotId(o), slotWrap: this.slotWrap(o),
+        open: e => this.openDetail(o.id, e),
+        cardStyle: {
+          cursor: "pointer", background: "#FFFFFF", borderRadius: 16, overflow: "hidden",
+          boxShadow: this.SHADOW,
+          opacity: going ? 0 : undefined,
+          transform: going ? "scale(0.96)" : undefined,
+          transition: going ? "opacity 180ms ease-out, transform 180ms ease-out" : undefined
+        },
+        clipStyle: {
+          position: "relative", width: "100%", aspectRatio: "3 / 2", overflow: "hidden",
+          display: "flex", alignItems: "flex-end"
+        },
+        photoStyle: this.photoLayer(o),
+        thumbSrc: (this.thumb(o) || {}).src || "",
+        thumbStyle: this.thumbStyle(o),
+        veil: this.hasPhoto(o)
+          ? { position: "absolute", left: 0, right: 0, bottom: 0, height: "55%", pointerEvents: "none", backgroundImage: "linear-gradient(to top, rgba(0,0,0,0.6), rgba(0,0,0,0))" }
+          : { display: "none" },
+        nameStyle: {
+          position: "relative", zIndex: 2, pointerEvents: "none", padding: 18, color: "#FFFFFF",
+          fontFamily: "'Zen Kaku Gothic New',sans-serif", fontWeight: 700,
+          fontSize: this.hasPhoto(o) ? 22 : 26, lineHeight: 1.36, letterSpacing: "-0.04em"
+        },
+        cells: this.cellsFor(o),
+        daysUnknown: !o.active_days,
+        feeText: this.feeText(o),
+        feeStyle: o.annual_fee === null ? { fontSize: 13, color: "#6B7484" } : this.num(14),
+        membersText: o.member_count + "人",
+        membersStyle: this.num(14),
+        multiText: o.multi_club_ok ? "掛け持ちできる" : "掛け持ちできない"
+      };
+    });
+
+    const d = byId[st.detailId];
+    const slideIds = this.slidesFor(d);
+    const filledIds = this.filledSlides(d);
+    const dPhoto = filledIds.length > 0;
+    const showCarousel = filledIds.length > 1;
+    const slideIdx = filledIds.length ? st.slide % filledIds.length : 0;
+    const activeKey = filledIds.length ? filledIds[slideIdx].key : null;
+    const auto = this.autoOn(d);
+    const snsBtn = {
+      flex: 1, height: 46, display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: 13, color: "#14213A", cursor: "pointer", background: "#FFFFFF", borderRadius: 999,
+      boxShadow: this.SHADOW
+    };
+    const snsOff = Object.assign({}, snsBtn, { color: "#6B7484", cursor: "default", boxShadow: "inset 0 0 0 1px #E2E2DB", background: "transparent" });
+    const sns = [
+      { label: "Instagram", style: d.sns.instagram ? snsBtn : snsOff },
+      { label: "X", style: d.sns.x ? snsBtn : snsOff },
+      { label: "公式サイト", style: d.sns.website ? snsBtn : snsOff }
+    ];
+
+    const bigNum = this.num(28);
+    const dash = this.num(28, "#6B7484");
+    const wordNum = { fontFamily: "'Noto Sans JP',sans-serif", fontWeight: 500, fontSize: 16, color: "#14213A" };
+    const gender = this.genderCounts(d);
+    const numbers = [
+      { label: "年会費", value: d.annual_fee === null ? "—" : "¥" + d.annual_fee.toLocaleString(), valueStyle: d.annual_fee === null ? dash : bigNum },
+      { label: "所属人数", value: d.member_count === null ? "—" : String(d.member_count), valueStyle: d.member_count === null ? dash : bigNum },
+      { label: "初心者出身", value: d.beginner_count === null ? "—" : String(d.beginner_count), valueStyle: d.beginner_count === null ? dash : bigNum },
+      gender.word
+        ? { label: "男 : 女", value: gender.word, valueStyle: wordNum }
+        : { label: "男 : 女", value: gender.text, valueStyle: gender.text === "—" ? dash : bigNum }
+    ];
+
+    const matchedDays = (d.active_days || []).filter(x => st.days.indexOf(x) >= 0);
+    const dayLine = [];
+    if (!d.active_days || d.active_days.length === 0) {
+      dayLine.push({ text: "活動日 未確認", style: { fontFamily: "'Zen Kaku Gothic New',sans-serif", fontWeight: 700, fontSize: 30, letterSpacing: "-0.02em", color: "#6B7484" } });
+    } else {
+      const picked = [];
+      this.DAY_ORDER.forEach((dayIdx, i) => {
+        if (d.active_days.indexOf(dayIdx) >= 0) picked.push({ i, dayIdx });
+      });
+      const big = c => ({
+        fontFamily: "'Zen Kaku Gothic New',sans-serif", fontWeight: 700, fontSize: 30,
+        lineHeight: 1.25, letterSpacing: "-0.02em", color: c,
+        transition: "color 240ms " + this.EASE
+      });
+      picked.forEach((p, n) => {
+        const on = matchedDays.indexOf(p.dayIdx) >= 0;
+        dayLine.push({ text: this.DAY_LABELS[p.i], style: big(on ? "#E8A33D" : "#14213A") });
+        if (n < picked.length - 1) dayLine.push({ text: "・", style: big("#6B7484") });
+      });
+    }
+
+    const dayBtns = this.DAY_ORDER.map((dayIdx, i) => {
+      const on = st.days.indexOf(dayIdx) >= 0;
+      return {
+        label: this.DAY_LABELS[i],
+        onClick: () => this.toggleIn("days", dayIdx),
+        style: {
+          width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 14, cursor: "pointer",
+          borderRadius: 999,
+          background: on ? "#14213A" : "#FFFFFF",
+          color: on ? "#FFFFFF" : "#14213A",
+          boxShadow: on ? "none" : "inset 0 0 0 1px #E2E2DB"
+        }
+      };
+    });
+
+    const track = on => ({ width: 48, height: 28, borderRadius: 999, background: on ? "#14213A" : "#FFFFFF", boxShadow: on ? "none" : "inset 0 0 0 1px #E2E2DB", display: "flex", alignItems: "center", padding: 3, justifyContent: on ? "flex-end" : "flex-start", transition: "background 200ms " + this.EASE });
+    const knob = on => ({ width: 20, height: 20, borderRadius: 999, background: on ? "#FFFFFF" : "#E2E2DB" });
+
+    const filterCount = st.days.length + st.cats.length + st.genres.length + (st.fee !== "指定なし" ? 1 : 0) + (st.beginner ? 1 : 0) + (st.multi ? 1 : 0);
+    const bigBtn = {
+      height: 54, display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+      background: "#1B1A18", color: "#FFFFFF", cursor: "pointer", borderRadius: 999,
+      fontFamily: "'Noto Sans JP',sans-serif", fontWeight: 500, fontSize: 14, letterSpacing: "0.02em",
+      boxShadow: this.SHADOW
+    };
+
+    return {
+      isHome: st.screen === "home",
+      isDetail: st.screen === "detail",
+      isEmpty: filteredCount === 0,
+      coverRows, list,
+      q: st.q,
+      onQuery: e => this.applyFilters({ q: e.target.value }),
+      searchWrap: { background: "#FFFFFF", borderRadius: 999, display: "flex", alignItems: "center", boxShadow: this.SHADOW, padding: "0 6px" },
+      listRef: this.listRef,
+      countLabel: filteredCount + "件",
+      countStyle: this.num(14, "#6B7484"),
+      detail: {
+        shortName: d.short_name, name: d.name, real: !!d.real, slotId: this.slotId(d), slotWrap: this.slotWrap(d),
+        metaText: this.broadCategory(d) + " ・ " + d.category,
+        metaStyle: {
+          fontSize: 11, letterSpacing: "0.14em", fontWeight: 500, color: "rgba(255,255,255,.78)",
+          animation: "heroUp 700ms cubic-bezier(.2,.7,.3,1) both", animationDelay: "300ms"
+        },
+        heroNameStyle: {
+          fontFamily: "'Zen Kaku Gothic New',sans-serif", fontWeight: 700,
+          fontSize: dPhoto ? 40 : 46, lineHeight: 1.22, letterSpacing: "-0.03em", color: "#FFFFFF",
+          marginTop: 12, textWrap: "pretty",
+          animation: "heroUp 700ms cubic-bezier(.2,.7,.3,1) both", animationDelay: "380ms"
+        },
+        heroFormalStyle: {
+          fontSize: 13, color: "rgba(255,255,255,.72)", marginTop: 10, lineHeight: 1.6,
+          animation: "heroUp 700ms cubic-bezier(.2,.7,.3,1) both", animationDelay: "520ms"
+        },
+        sheetNameStyle: {
+          margin: "10px 0 0", fontFamily: "'Zen Kaku Gothic New',sans-serif", fontWeight: 700,
+          fontSize: 34, lineHeight: 1.28, letterSpacing: "-0.02em", color: "#14213A", textWrap: "pretty"
+        },
+        heroPhoto: {
+          position: "absolute", inset: 0, transformOrigin: "50% 50%",
+          background: dPhoto ? this.PHOTO : this.genreColor(d.genre),
+          filter: "brightness(" + (dPhoto ? 0.94 : 1) + ")",
+          animation: !dPhoto && !this.reduced ? "heroZoomIn 16000ms cubic-bezier(.25,.1,.25,1) both" : undefined
+        },
+        noSlides: slideIds.length === 0,
+        firstSlotId: (slideIds[0] && slideIds[0].slotId) || this.slotId(d, 0),
+        slides: slideIds.map((sl, i) => {
+          const on = activeKey && sl.key === activeKey;
+          return {
+            isSlot: !sl.src,
+            slotId: sl.slotId,
+            slotWrap: { position: "absolute", inset: 0, opacity: 0, transition: "opacity 200ms ease-out" },
+            src: sl.src || "",
+            imgStyle: sl.src
+              ? { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: sl.pos, display: "block" }
+              : { display: "none" },
+            style: {
+              position: "absolute", inset: 0,
+              opacity: on ? 1 : 0,
+              transition: "opacity 700ms ease-in-out",
+              transform: on && st.dragX ? "translateX(" + st.dragX * 0.4 + "px)" : undefined,
+              animation: on && !this.reduced
+                ? (i === 0 ? "heroZoomIn 16000ms cubic-bezier(.25,.1,.25,1) both" : "slideZoom 5200ms cubic-bezier(.25,.1,.25,1) both")
+                : undefined
+            }
+          };
+        }),
+        dots: showCarousel ? filledIds.map((sl, i) => ({
+          onClick: () => this.goSlide(i),
+          wrap: { width: 20, height: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", pointerEvents: "auto" },
+          style: {
+            width: i === slideIdx && auto ? 18 : 5, height: 5, borderRadius: 3, overflow: "hidden",
+            background: i === slideIdx ? (auto ? "rgba(255,255,255,.35)" : "#FFFFFF") : "rgba(255,255,255,.45)",
+            transition: "width 240ms " + this.EASE
+          },
+          fill: i === slideIdx && auto
+            ? { height: "100%", background: "#FFFFFF", animation: "dotFill 5000ms linear both" }
+            : { display: "none" }
+        })) : [],
+        togglePlay: () => {
+          if (this.state.autoplay) this.stopAuto();
+          else this.setState({ autoplay: true }, () => { this._slideShown = true; this.scheduleSlide(); });
+        },
+        playGlyph: auto ? "⏸" : "▶",
+        playStyle: showCarousel
+          ? { width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "rgba(255,255,255,.7)", cursor: "pointer", pointerEvents: "auto" }
+          : { display: "none" },
+        dotsStyle: showCarousel
+          ? { display: "flex", alignItems: "center", gap: 0, marginBottom: 4, marginLeft: -8 }
+          : { display: "none" },
+        oneLiner: d.one_liner,
+        dayCardStyle: { background: "#FFFFFF", borderRadius: 16, padding: 20, marginTop: 20, boxShadow: this.SHADOW },
+        timeText: this.TIMES[d.id] || "時間 未確認",
+        timeStyle: Object.assign(this.num(16, this.TIMES[d.id] ? "#14213A" : "#6B7484"), { marginTop: 8 }),
+        placeDual: (d.place || "活動場所 未確認") + " ・ " +
+          (d.multi_club_ok === null || d.multi_club_ok === undefined ? "掛け持ち 未確認" : (d.multi_club_ok ? "掛け持ち できる" : "掛け持ち できない")),
+        extraCost: d.extra_cost_note ? "別途：" + d.extra_cost_note : "年会費のほかにかかる費用はありません。",
+        voice: this.VOICES[d.id] || "見学だけでも歓迎しています。まず一度、活動を見に来てください。",
+        dayLine, numbers,
+        numCardStyle: { background: "#FFFFFF", borderRadius: 16, padding: 20, boxShadow: this.SHADOW },
+        aboutCardStyle: { background: "#FFFFFF", borderRadius: 16, padding: 20, marginTop: 16, boxShadow: this.SHADOW, display: "flex", flexDirection: "column", gap: 12 },
+        about: String(d.description || "").split("\n").map(t => ({ text: t })),
+        welcome: this.welcomeFor(d),
+        sns
+      },
+      onDragStart: e => this.onDragStart(e),
+      onDragMove: e => this.onDragMove(e),
+      onDragEnd: () => this.onDragEnd(),
+      navRef: this.navRef, heroRef: this.heroRef, cueRef: this.cueRef, sheetRef: this.sheetRef,
+      back: () => this.setState({ screen: "home" }),
+      sheetOpen: st.sheetOpen,
+      openSheet: () => this.setState({ sheetOpen: true }),
+      closeSheet: () => this.setState({ sheetOpen: false }),
+      dayBtns,
+      catChips: this.CATS.map(c => this.chip(c, st.cats.indexOf(c) >= 0, () => this.toggleIn("cats", c))),
+      genreChips: this.GENRES.map(c => this.chip(c, st.genres.indexOf(c) >= 0, () => this.toggleIn("genres", c), this.genreColor(c))),
+      feeChips: this.FEES.map(c => this.chip(c, st.fee === c, () => this.applyFilters({ fee: c }))),
+      toggleBeginner: () => this.applyFilters({ beginner: !st.beginner }),
+      toggleMulti: () => this.applyFilters({ multi: !st.multi }),
+      beginnerTrack: track(st.beginner), beginnerKnob: knob(st.beginner),
+      multiTrack: track(st.multi), multiKnob: knob(st.multi),
+      clearFilters: () => this.applyFilters({ q: "", days: [], cats: [], genres: [], fee: "指定なし", beginner: false, multi: false }),
+      resultLabel: filteredCount + "件を表示 •",
+      applyBtnStyle: Object.assign({}, bigBtn, { flex: 1, height: 52 }),
+      filterBtnStyle: bigBtn,
+      badgeStyle: Object.assign(this.num(12, "#14213A"), {
+        minWidth: 22, height: 22, padding: "0 6px", borderRadius: 11, background: "#FFFFFF",
+        display: "flex", alignItems: "center", justifyContent: "center"
+      }),
+      hasFilters: filterCount > 0,
+      filterCount
+    };
+  }
+}
+</script>
+</body>
+</html>

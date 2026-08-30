@@ -1,0 +1,15 @@
+node_modules
+.next
+.env
+.env.local
+data/report.md
+data/.image-cache.json
+.DS_Store
+
+# Next.js / TypeScript
+/out
+next-env.d.ts
+*.tsbuildinfo
+
+# Vercel
+.vercel

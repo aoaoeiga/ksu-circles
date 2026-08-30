@@ -1,0 +1,418 @@
+{
+  "_note": "架空の団体データ。実在する京産大の団体名は使っていない。active_days は 0=月〜6=日。null は未確認で 0 とは区別する（annual_fee の 0 は無料）。gender は実数で、表示時に合計10へ丸める。photos は /public/photos 配下のファイル名。サンプルでは実ファイルが無いので、読み込み失敗時はジャンル色タイルにフォールバックすること。",
+  "circles": [
+    {
+      "id": "c001",
+      "short_name": "ハーフタイム",
+      "name": "フットサルサークル ハーフタイム",
+      "division": "運動系",
+      "category": "届出団体",
+      "genre": "球技",
+      "one_liner": "経験者と初心者が半々。ガチではないが、ちゃんと試合はする。",
+      "active_days": [
+        0,
+        3
+      ],
+      "active_times": {
+        "0": [
+          "18:00",
+          "20:00"
+        ],
+        "3": [
+          "18:00",
+          "20:00"
+        ]
+      },
+      "frequency_per_week": 2,
+      "hours_per_session": null,
+      "place": "第2グラウンド",
+      "annual_fee": 3000,
+      "extra_cost_note": "合宿費 年1回 ¥8,000",
+      "member_count": 42,
+      "beginner_count": 28,
+      "first_year_count": null,
+      "gender": {
+        "male": 25,
+        "female": 17
+      },
+      "multi_club_ok": true,
+      "description": "月曜と木曜に練習、月1回は他大学と試合をします。練習は基礎練とミニゲームが半々で、経験の差が出にくい組み方にしています。\n用具はシューズだけ自分で用意してもらいます。ユニフォームは貸し出しです。",
+      "leader_comment": {
+        "text": "上手い下手より、来られる日に来てくれる人がありがたいです。試合に出たい人は出られます。",
+        "role": "代表（3年）"
+      },
+      "recruiting": "いつでも入れる",
+      "next_recruit": {
+        "date": "2026-10-02",
+        "what": "体験練習会（運動できる服装・シューズ貸出あり）"
+      },
+      "surveyed_at": "2026-09",
+      "sns": {
+        "instagram": "#",
+        "x": "#",
+        "website": null
+      },
+      "photos": [
+        "c001-1.webp",
+        "c001-2.webp"
+      ],
+      "tile_size": "M"
+    },
+    {
+      "id": "c002",
+      "short_name": "さいの目",
+      "name": "ボードゲーム研究会 さいの目",
+      "division": "文化系",
+      "category": "届出団体",
+      "genre": "文化・創作",
+      "one_liner": "週1回、来られる日だけ来ればいい。事前連絡もいらない。",
+      "active_days": [
+        1
+      ],
+      "active_times": {
+        "1": [
+          "17:00",
+          "20:00"
+        ]
+      },
+      "frequency_per_week": 1,
+      "hours_per_session": null,
+      "place": "13号館 3階 集会室",
+      "annual_fee": 1000,
+      "extra_cost_note": "なし",
+      "member_count": 23,
+      "beginner_count": 19,
+      "first_year_count": null,
+      "gender": {
+        "male": 16,
+        "female": 7
+      },
+      "multi_club_ok": true,
+      "description": "火曜の夕方に部室へ集まって、その日いる人でゲームを決めて遊びます。所有ボードゲームは120種類ほど。初回はルール説明つきの軽いものから入るので、遊んだことがなくても問題ありません。\nテスト期間は活動を休みます。",
+      "leader_comment": {
+        "text": "一人で来ても、その日いる人と自然に混ざれます。まずは見に来てください。",
+        "role": "代表（2年）"
+      },
+      "recruiting": "いつでも入れる",
+      "next_recruit": {
+        "date": "2026-10-07",
+        "what": "新歓ゲーム会（見学のみ・入退室自由）"
+      },
+      "surveyed_at": "2026-09",
+      "sns": {
+        "instagram": "#",
+        "x": null,
+        "website": null
+      },
+      "photos": [],
+      "tile_size": "S"
+    },
+    {
+      "id": "c003",
+      "short_name": "こだま",
+      "name": "アカペラサークル こだま",
+      "division": "文化系",
+      "category": "届出団体",
+      "genre": "音楽",
+      "one_liner": "バンドを組んで、学内外のライブに出る。掛け持ちはできない。",
+      "active_days": [
+        2,
+        4
+      ],
+      "active_times": {
+        "2": [
+          "18:30",
+          "21:00"
+        ],
+        "4": [
+          "18:30",
+          "21:00"
+        ]
+      },
+      "frequency_per_week": 2,
+      "hours_per_session": null,
+      "place": "課外活動棟 2階",
+      "annual_fee": null,
+      "extra_cost_note": "なし",
+      "member_count": 31,
+      "beginner_count": null,
+      "first_year_count": null,
+      "gender": null,
+      "multi_club_ok": false,
+      "description": "サークル内でバンドを組み、練習して発表するのが基本の流れです。年に4回、学内ライブがあります。\nライブ前は練習が増えるため、掛け持ちは不可としています。",
+      "leader_comment": {
+        "text": "歌ったことがない人ほど伸びます。バンドは希望を聞いて組みます。",
+        "role": "代表（3年）"
+      },
+      "recruiting": "4月のみ",
+      "next_recruit": null,
+      "surveyed_at": "2026-09",
+      "sns": {
+        "instagram": "#",
+        "x": null,
+        "website": "#"
+      },
+      "photos": [],
+      "tile_size": "M"
+    },
+    {
+      "id": "c004",
+      "short_name": "青嶺会",
+      "name": "合気道部 青嶺会",
+      "division": "運動系",
+      "category": "体育会所属クラブ",
+      "genre": "武道",
+      "one_liner": "9割が大学から始めている。段位を取るまで4年かかる。",
+      "active_days": [
+        0,
+        2,
+        4
+      ],
+      "active_times": {
+        "0": [
+          "17:30",
+          "19:30"
+        ],
+        "2": [
+          "17:30",
+          "19:30"
+        ],
+        "4": [
+          "17:30",
+          "19:30"
+        ]
+      },
+      "frequency_per_week": 3,
+      "hours_per_session": null,
+      "place": "第1体育館 武道場",
+      "annual_fee": 12000,
+      "extra_cost_note": "道着 初回のみ ¥9,000 / 昇級審査料 年2回 ¥3,000",
+      "member_count": 28,
+      "beginner_count": 25,
+      "first_year_count": null,
+      "gender": {
+        "male": 14,
+        "female": 14
+      },
+      "multi_club_ok": false,
+      "description": "週3回の稽古と、年2回の昇級審査があります。体力より継続が要るので、入部時点の運動経験はほとんど関係ありません。\n道着は初回に購入してもらいます。夏と春に合宿があります。",
+      "leader_comment": {
+        "text": "体力に自信がなくて大丈夫です。続けた人から順に強くなります。",
+        "role": "主将（3年）"
+      },
+      "recruiting": "いつでも入れる",
+      "next_recruit": {
+        "date": "2026-09-29",
+        "what": "稽古見学（道着不要・体育館履きのみ持参）"
+      },
+      "surveyed_at": "2026-09",
+      "sns": {
+        "instagram": "#",
+        "x": null,
+        "website": "#"
+      },
+      "photos": [
+        "c004-1.webp"
+      ],
+      "tile_size": "L"
+    },
+    {
+      "id": "c005",
+      "short_name": "ことのは",
+      "name": "文芸サークル ことのは",
+      "division": "文化系",
+      "category": "届出団体",
+      "genre": "文化・創作",
+      "one_liner": "年2回、部誌を出す。書かない期間があっても抜けなくていい。",
+      "active_days": [
+        3
+      ],
+      "active_times": {
+        "3": [
+          "16:30",
+          "18:00"
+        ]
+      },
+      "frequency_per_week": 1,
+      "hours_per_session": null,
+      "place": "10号館 2階 会議室",
+      "annual_fee": 2000,
+      "extra_cost_note": "部誌の印刷代 年2回 ¥1,500",
+      "member_count": 17,
+      "beginner_count": 14,
+      "first_year_count": null,
+      "gender": {
+        "male": 7,
+        "female": 10
+      },
+      "multi_club_ok": true,
+      "description": "木曜に集まって、書いたものを持ち寄って読み合います。締切は年2回の部誌のときだけで、それ以外の週は雑談で終わることもあります。\n読む専門で在籍している人もいます。",
+      "leader_comment": {
+        "text": "書けない時期があっても居ていい場所にしています。読む側で入る人もいます。",
+        "role": "代表（2年）"
+      },
+      "recruiting": "いつでも入れる",
+      "next_recruit": {
+        "date": "2026-10-09",
+        "what": "部誌の配布と見学会（何も書かずに来て大丈夫）"
+      },
+      "surveyed_at": "2026-09",
+      "sns": {
+        "instagram": "#",
+        "x": "#",
+        "website": null
+      },
+      "photos": [],
+      "tile_size": "S"
+    },
+    {
+      "id": "c006",
+      "short_name": "とりで",
+      "name": "学生ボランティア団体 とりで",
+      "division": "その他",
+      "category": "学生プロジェクトチーム",
+      "genre": "ボランティア",
+      "one_liner": "活動は土曜だけ。参加する回を自分で選べる。",
+      "active_days": [
+        5
+      ],
+      "active_times": {
+        "5": [
+          "09:00",
+          "12:00"
+        ]
+      },
+      "frequency_per_week": 1,
+      "hours_per_session": null,
+      "place": "学外（上賀茂・大宮の各所）",
+      "annual_fee": 0,
+      "extra_cost_note": "交通費は自己負担",
+      "member_count": 35,
+      "beginner_count": 33,
+      "first_year_count": null,
+      "gender": {
+        "male": 0,
+        "female": 35,
+        "note": "女子のみ"
+      },
+      "multi_club_ok": true,
+      "description": "近隣の小学校での学習支援と、河川敷の清掃を隔週で行っています。毎回全員が出るわけではなく、参加できる回に手を挙げる形です。\n年会費はありません。現地までの交通費だけ各自で負担してもらいます。",
+      "leader_comment": {
+        "text": "全部に出る必要はありません。行ける回だけ手を挙げてください。",
+        "role": "代表（3年）"
+      },
+      "recruiting": "いつでも入れる",
+      "next_recruit": {
+        "date": "2026-10-04",
+        "what": "清掃活動の体験参加（軍手・飲み物は用意します）"
+      },
+      "surveyed_at": "2026-09",
+      "sns": {
+        "instagram": "#",
+        "x": null,
+        "website": "#"
+      },
+      "photos": [
+        "c006-1.webp",
+        "c006-2.webp",
+        "c006-3.webp"
+      ],
+      "tile_size": "M"
+    },
+    {
+      "id": "c007",
+      "short_name": "ソラリス",
+      "name": "天文同好会 ソラリス",
+      "division": "その他",
+      "category": "届出団体",
+      "genre": "その他",
+      "one_liner": "観測は夜。授業と重ならないのが最大の利点。",
+      "active_days": [],
+      "active_times": {},
+      "frequency_per_week": null,
+      "hours_per_session": null,
+      "place": null,
+      "annual_fee": 1500,
+      "extra_cost_note": "なし",
+      "member_count": 14,
+      "beginner_count": 12,
+      "first_year_count": null,
+      "gender": null,
+      "multi_club_ok": true,
+      "description": "晴れた日の夜に集まって観測します。曜日は固定していません。望遠鏡はサークルのものを使うので、機材は買わなくて大丈夫です。\n遠征は年2回、車を出せる人と乗り合わせて行きます。",
+      "leader_comment": {
+        "text": "晴れた日にだけ動くので、予定が読めないのが正直なところです。",
+        "role": "代表（2年）"
+      },
+      "recruiting": null,
+      "next_recruit": null,
+      "surveyed_at": "2026-09",
+      "sns": {
+        "instagram": "#",
+        "x": "#",
+        "website": null
+      },
+      "photos": [
+        "c007-1.webp"
+      ],
+      "tile_size": "S"
+    },
+    {
+      "id": "c008",
+      "short_name": "こみち",
+      "name": "軽音楽同好会 こみち",
+      "division": "文化系",
+      "category": "届出団体",
+      "genre": "音楽",
+      "one_liner": "初心者から始めた人が7割。楽器は部室のものを使える。",
+      "active_days": [
+        1,
+        4
+      ],
+      "active_times": {
+        "1": [
+          "18:00",
+          "21:00"
+        ],
+        "4": [
+          "18:00",
+          "21:00"
+        ]
+      },
+      "frequency_per_week": 2,
+      "hours_per_session": null,
+      "place": "課外活動棟 1階 音楽室",
+      "annual_fee": 6000,
+      "extra_cost_note": "スタジオ代 月 ¥1,000程度",
+      "member_count": 56,
+      "beginner_count": 39,
+      "first_year_count": null,
+      "gender": {
+        "male": 33,
+        "female": 23
+      },
+      "multi_club_ok": true,
+      "description": "半期ごとにバンドを組み替えて、学内ライブに出ます。楽器は部室のものを使えるので、入部時に買う必要はありません。\n月々のスタジオ代がかかるので、年会費とは別に見ておいてください。",
+      "leader_comment": {
+        "text": "楽器を持っていない人が毎年半分います。部室のもので始められます。",
+        "role": "代表（3年）"
+      },
+      "recruiting": "4月のみ",
+      "next_recruit": {
+        "date": "2026-10-03",
+        "what": "新歓ライブ（出入り自由・楽器に触れる時間あり）"
+      },
+      "surveyed_at": "2026-09",
+      "sns": {
+        "instagram": "#",
+        "x": "#",
+        "website": "#"
+      },
+      "photos": [
+        "c008-1.webp",
+        "c008-2.webp"
+      ],
+      "tile_size": "L"
+    }
+  ]
+}
