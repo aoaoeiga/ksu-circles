@@ -42,7 +42,6 @@ import { openDetailZoom } from "@/components/zoom";
 import { usePrefersReducedMotion } from "@/components/usePrefersReducedMotion";
 
 export type Filters = {
-  q: string;
   days: number[];
   cats: string[];
   genres: string[];
@@ -52,7 +51,6 @@ export type Filters = {
 };
 
 export const EMPTY_FILTERS: Filters = {
-  q: "",
   days: [],
   cats: [],
   genres: [],
@@ -73,11 +71,6 @@ const TILE_RANK: Record<Circle["tile_size"], number> = { L: 0, M: 1, S: 2 };
 
 /** 移植元の passes(). 絞り込みの判定 */
 function passes(o: Circle, f: Filters): boolean {
-  const q = f.q.trim().toLowerCase();
-  if (q) {
-    const hay = (o.short_name + " " + o.name + " " + o.genre + " " + o.category).toLowerCase();
-    if (hay.indexOf(q) < 0) return false;
-  }
   if (f.days.length && !f.days.some((d) => o.active_days.indexOf(d) >= 0)) return false;
   if (f.cats.length && f.cats.indexOf(o.category) < 0) return false;
   if (f.genres.length && f.genres.indexOf(o.genre) < 0) return false;
@@ -98,7 +91,6 @@ function passes(o: Circle, f: Filters): boolean {
 /** 絞り込みをURLの検索文字列にする。既定値は書かない（きれいなURLを保つ） */
 export function filtersToQuery(f: Filters): string {
   const p = new URLSearchParams();
-  if (f.q.trim()) p.set("q", f.q.trim());
   if (f.days.length) p.set("days", [...f.days].sort((a, b) => a - b).join(","));
   if (f.cats.length) p.set("cats", f.cats.join(","));
   if (f.genres.length) p.set("genres", f.genres.join(","));
@@ -346,38 +338,6 @@ export default function HomeScreen({
         >
           {circles.length}団体を、活動曜日と年会費から探せます。
         </p>
-      </div>
-
-      <div style={{ padding: "24px 20px 0" }}>
-        <div
-          style={{
-            background: WHITE,
-            borderRadius: 999,
-            display: "flex",
-            alignItems: "center",
-            boxShadow: SHADOW,
-            padding: "0 6px",
-          }}
-        >
-          <input
-            type="text"
-            value={f.q}
-            onChange={(e) => applyFilters({ q: e.target.value })}
-            placeholder="団体名やジャンルで検索"
-            aria-label="団体名やジャンルで検索"
-            style={{
-              width: "100%",
-              height: 50,
-              border: 0,
-              outline: "none",
-              background: "transparent",
-              padding: "0 16px",
-              fontFamily: "'Noto Sans JP',sans-serif",
-              fontSize: 15,
-              color: INK,
-            }}
-          />
-        </div>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "26px 20px 0" }}>

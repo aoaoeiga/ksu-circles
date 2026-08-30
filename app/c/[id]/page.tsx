@@ -259,26 +259,6 @@ export default async function CirclePage(props: PageProps<"/c/[id]">) {
             >
               {c.next_recruit?.what ?? "決まりしだい、このページに載せます。"}
             </div>
-            {/* 移植元は日程があるときだけこのボタンを出す（docs/ui/07-content.md §7）。
-                リンク先になるURLが掲載項目に無いので、移植元と同じく飾りのまま置いてある。 */}
-            {hasDate && (
-              <div
-                style={{
-                  height: 44,
-                  marginTop: 4,
-                  padding: "0 20px",
-                  borderRadius: 999,
-                  background: DARK,
-                  color: WHITE,
-                  fontSize: 13,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  width: "max-content",
-                }}
-              >
-                詳しく見る •
-              </div>
-            )}
           </div>
         </Section>
 

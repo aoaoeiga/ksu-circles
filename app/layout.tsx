@@ -1,10 +1,21 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { BG } from "@/lib/design";
+import { ALLOW_INDEXING } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: "京産大サークル名鑑",
   description: "京都産業大学の課外活動団体を、同じ項目で横断して比べられる名鑑。",
+
+  // 公開前は全ページを noindex, nofollow。ルートレイアウトに置くので
+  // 一覧・団体ページ・404 のすべてに効く。ALLOW_INDEXING=1 のときだけ外れる（lib/seo.ts）
+  robots: ALLOW_INDEXING
+    ? undefined
+    : {
+        index: false,
+        follow: false,
+        googleBot: { index: false, follow: false },
+      },
 };
 
 export const viewport: Viewport = {
