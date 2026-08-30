@@ -16,6 +16,7 @@ import type { Circle } from "@/types/circle";
 import { BG, EASE, INK, PHOTO, RULE, genreColor, photoSrc } from "@/lib/design";
 import { divisionText } from "@/lib/labels";
 import { usePrefersReducedMotion } from "@/components/usePrefersReducedMotion";
+import { dismissZoomGhost } from "@/components/zoom";
 
 const FIRST_DELAY = 6000;
 const SLIDE_DELAY = 5000;
@@ -37,13 +38,56 @@ export default function Hero({ circle }: { circle: Circle }) {
   const [heroVisible, setHeroVisible] = useState(true);
   const [hidden, setHidden] = useState(false);
   const [dragX, setDragX] = useState(0);
+  const [hiResFile, setHiResFile] = useState<string | null>(null);
   const reduced = usePrefersReducedMotion();
+  const readySignalled = useRef(false);
+  const firstImgRef = useRef<HTMLImageElement>(null);
 
   const photos = (circle.photos || []).slice(0, 8).filter((p) => !broken[p]);
   const hasPhoto = photos.length > 0;
   const showCarousel = photos.length > 1;
   const idx = photos.length ? slide % photos.length : 0;
   const auto = !reduced && autoplay && heroVisible && !hidden && showCarousel;
+
+  // --- 一覧からの拡大との継ぎ目 --------------------------------------------
+  //
+  // 一覧で押した写真を拡大したゴーストが、まだ画面を塞いでいる（components/zoom.ts）。
+  // **ここが「描画できて写真も出た」と言うまで、ゴーストは外れない。**
+  // タイマーで外すと、写真が読めていない一瞬に地の色が見えてしまう。
+  const signalReady = useCallback(() => {
+    if (readySignalled.current) return;
+    readySignalled.current = true;
+    // 2フレーム待って、確実に描画されてから外す
+    requestAnimationFrame(() => requestAnimationFrame(dismissZoomGhost));
+  }, []);
+
+  const firstFile = photos.length > 0 ? photos[0] : null;
+
+  useEffect(() => {
+    // 写真がない団体はジャンル色のベタ塗りなので、待つものがない
+    if (!firstFile) {
+      signalReady();
+      return;
+    }
+    // キャッシュ済みで onLoad が来ないことがある
+    const img = firstImgRef.current;
+    if (img && img.complete && img.naturalWidth > 0) signalReady();
+  }, [firstFile, signalReady]);
+
+  // 1枚目は、一覧のタイルと同じ @600 を先に出す。**ゴーストが見せていたのと同じ画像**
+  // なので、外れた瞬間に絵が変わらない。幅1200が読めてから静かに差し替える。
+  useEffect(() => {
+    if (!firstFile) return;
+    const img = new window.Image();
+    img.onload = () => setHiResFile(firstFile);
+    img.src = photoSrc(firstFile);
+    return () => {
+      img.onload = null;
+    };
+  }, [firstFile]);
+
+  // 「どの写真の高解像度が読めたか」で持つ。差し替え待ちを state のリセットで表さない
+  const firstHiRes = firstFile !== null && hiResFile === firstFile;
 
   // --- 自動送り ------------------------------------------------------------
   const scheduleSlide = useCallback(() => {
@@ -265,13 +309,18 @@ export default function Hero({ circle }: { circle: Circle }) {
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={photoSrc(file)}
+                  ref={i === 0 ? firstImgRef : undefined}
+                  src={i === 0 && !firstHiRes ? photoSrc(file, "thumb") : photoSrc(file)}
                   alt=""
                   width={1200}
                   height={800}
                   loading={i === 0 ? "eager" : "lazy"}
                   fetchPriority={i === 0 ? "high" : undefined}
-                  onError={() => setBroken((b) => ({ ...b, [file]: true }))}
+                  onLoad={i === 0 ? signalReady : undefined}
+                  onError={() => {
+                    setBroken((b) => ({ ...b, [file]: true }));
+                    if (i === 0) signalReady();
+                  }}
                   style={{
                     position: "absolute",
                     inset: 0,
