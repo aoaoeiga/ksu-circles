@@ -2,7 +2,7 @@
 
 作成: 2026/08/30 ／ 東田
 用途: **このファイルを Claude Code に渡して実装させる。**
-やること: スプレッドシート ＋ Drive の写真 → `circles.json` ＋ 最適化済み画像
+やること: スプレッドシート → `circles.json`（写真は変換済みのものを `public/photos` に置く。§7）
 
 ---
 
@@ -21,10 +21,24 @@
 ## 1. 環境
 
 - Node.js 20 以上、TypeScript
-- シート取得: Google Sheets API v4（サービスアカウント）。シートはサービスアカウントに閲覧権限を付与する
-- Drive取得: Google Drive API v3（同じサービスアカウント）
-- 画像処理: `sharp`
-- 認証情報は `.env`（`GOOGLE_SERVICE_ACCOUNT_JSON`, `SHEET_ID`, `SHEET_NAME`, `DRIVE_FOLDER_ID`）。**リポジトリに入れない**
+- Node.js が TypeScript を直接実行するので、`tsx` などのランナーは要らない
+- シート取得: Google Sheets API v4。**サービスアカウントの偽装**で読む（キーを作らない。§1-1）
+- 画像処理はしない。変換済みのファイルを置く（§7）ので `sharp` も Drive API も使わない
+- 設定は `.env`（`SHEET_ID`, `SHEET_NAME`, `IMPERSONATE_SERVICE_ACCOUNT`）。**リポジトリに入れない**
+
+### 1-1. 認証
+
+組織ポリシー `iam.disableServiceAccountKeyCreation` でサービスアカウントキーが作れず、
+`gcloud auth application-default login --scopes=...spreadsheets` も既定クライアントが
+組織のアプリ制御でブロックされる。そのため**鍵も同意画面も使わない経路**にしてある。
+
+```bash
+gcloud auth application-default login          # --scopes は付けない
+gcloud auth application-default set-quota-project ksu-circles
+```
+
+自分の ADC で IAM Credentials API を呼び、シートを共有してあるサービスアカウントの
+アクセストークンを Sheets スコープ付きで発行してもらう。`npm run sync -- --list-sheets` で疎通を確認できる。
 
 ---
 
@@ -35,7 +49,12 @@
 | `npm run sync` | 取得 → 検証 → 変換 → 書き出し → レポート |
 | `npm run sync -- --dry-run` | 書き込まずレポートだけ出す。**警告の確認に使う** |
 | `npm run sync -- --only=c001,c004` | 指定した団体だけ処理する |
-| `npm run sync -- --force-images` | 画像キャッシュを無視して全部作り直す |
+| `npm run sync -- --print` | 変換結果のJSONを標準出力に出す。書き込まない |
+| `npm run sync -- --list-sheets` | シートのタブ名を並べる。`SHEET_NAME` の確認に使う |
+| `npm run sync -- --yes` | 上書き前の確認を飛ばす |
+
+**上書きの前に必ず差分を出す。**追加・消える団体・変更されたフィールドを並べたうえで確認を取る。
+出力が既存と1バイトも変わらなければ書き込まない（gitの差分を汚さない）。
 
 ---
 
@@ -126,21 +145,45 @@
 
 ---
 
-## 7. 画像処理
+## 7. 画像処理 — 変換済みファイルを置く
 
-Drive の写真URLから元画像を取得して変換する。
+**sync は画像を変換しない。`public/photos` を走査して、あるファイルを数えるだけ。**変換は手元で先に済ませて、ファイルを置く。
 
-1. Drive の fileId を抽出してダウンロード
-2. **3:2 にクロップ**（`sharp` の `cover` ＋ 中央基準）
-3. **幅1200（メイン）と幅600（一覧・先読み用）**の2枚を書き出す
-4. WebP、品質82
-5. ファイル名は `{団体ID}-{連番}.webp` / `{団体ID}-{連番}@600.webp`。**連番はシートの写真URLの並び順。**1枚目が一覧に出る
-6. EXIF を落とす（**撮影場所の位置情報が入っていることがある**）
-7. 最大8枚。9枚目以降は無視して警告
+**なぜ Drive から取らないか。**組織ポリシーでサービスアカウントキーが作れず、Sheets の認証だけでも偽装を挟む構成になっている。ここに Drive のスコープと権限をもう1つ増やすより、手元で変換して置くほうが工程が短い。
 
-**キャッシュ**: 元ファイルの Drive `md5Checksum` を `/data/.image-cache.json` に保存し、変化がなければ再変換しない。`--force-images` で無視。
+### 7-1. 置くもの
 
-**注意**: Drive の直リンクを `<img src>` に使わない。重いし、共有設定の事故が起きる。必ずローカルに書き出したものを配信する。
+```
+/public/photos/c054-1.webp        幅1200
+/public/photos/c054-1@600.webp    幅600（一覧のサムネ・先読み用）
+/public/photos/c054-2.webp
+...
+```
+
+- 3:2 にクロップ（中央基準）／ WebP 品質82 ／ **幅1200 と 幅600 の2枚**／ EXIF を落とす（撮影場所の位置情報が入っていることがある）
+- ファイル名は `{団体ID}-{連番}.webp` と `{団体ID}-{連番}@600.webp`。**連番は 1 から詰める。**1枚目が一覧のタイルとOGPに出る
+- HEIC は先に変換しておく
+
+### 7-2. sync がやること
+
+1. `public/photos` を1度だけ読み、`{id}-{連番}.webp` に一致するファイルを集める
+2. 連番順に並べて `photos` に入れる。**`@600` は入れない。**参照側が `lib/design.ts` の `photoSrc()` で組み立てる
+3. **最大8枚。9枚目以降は無視して警告**
+4. 1枚も無い団体は `[]` のまま。**警告は出すが除外はしない**（写真がない団体はジャンル色のタイルで出る。CLAUDE.md §6）
+
+次の場合も警告を出す。どれも公開してから気づくと直しにくい。
+
+- 連番が飛んでいる（`c054-2.webp` が無いのに `c054-3.webp` がある）
+- `@600` が無い（**一覧のサムネが404になる**）
+- 公開対象にないIDの写真が置いてある（消し忘れ）
+
+**キャッシュは要らない。**変換しないので、走査するだけ。`--force-images` も無い。
+
+### 7-3. 写真を入れ替えるとき
+
+ファイルを置き換えて `npm run sync` を回す。枚数が変われば `photos` の配列が変わり、差分に出る。
+
+**`circles.json` の `photos` を手で書かない。**次の sync で上書きされる。
 
 ---
 

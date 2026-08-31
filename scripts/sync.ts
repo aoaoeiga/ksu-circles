@@ -1,8 +1,8 @@
 // スプレッドシート → data/circles.json
 //
-// docs/10-sync-spec.md の実装。**第1段階：シートの読み取りと変換だけ。**
-// 画像処理（Drive取得・3:2クロップ・WebP化。仕様書 §7）はまだ実装していないので、
-// photos は常に空配列を入れる。実データが増えてから足す。
+// docs/10-sync-spec.md の実装。シートを読んで変換し、public/photos を走査する。
+// 写真は手元で 3:2・WebP・幅1200/600 に変換して置く方式（仕様書 §7）。
+// このスクリプトは Drive を見ないし、画像を書き出しもしない。**あるファイルを数えるだけ。**
 //
 // 守っていること（仕様書 §0）
 // - 原本はシート。circles.json は中間生成物。**手で直さない**
@@ -17,7 +17,7 @@
 //   npm run sync -- --only=c001,c004
 //   npm run sync -- --yes           差分の確認を飛ばす
 
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { GoogleAuth, Impersonated, JWT, type AuthClient } from "google-auth-library";
 import type {
@@ -33,6 +33,8 @@ import type {
 
 const OUT_JSON = "data/circles.json";
 const OUT_REPORT = "data/report.md";
+const PHOTO_DIR = "public/photos";
+const MAX_PHOTOS = 8;
 
 const SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"];
 
@@ -75,7 +77,8 @@ const COLS = {
   // シートに手で足す列（docs/ops/09-form-questions.md §4）
   description: ["紹介文"],
   catchcopy: ["キャッチコピー"],
-  tileSize: ["tile_size", "タイルの大きさ"],
+  // "title size" はシート側の綴り違い（tile の t-i-l-e）。直すまで読めるよう候補に入れてある
+  tileSize: ["tile_size", "tile size", "title size", "タイルの大きさ"],
 } as const;
 
 const DIVISIONS: Division[] = ["運動系", "文化系", "その他"];
@@ -255,6 +258,41 @@ function cleanRole(raw: string | null, warn: (m: string) => void): string {
   return rebuilt;
 }
 
+/**
+ * public/photos を1度だけ読んで、団体IDごとの写真を連番順に並べる。
+ *
+ * 期待するファイル名は `{id}-{連番}.webp`。`@600` は一覧用の別サイズで、
+ * **photos 配列には入れない。**参照側が lib/design.ts の photoSrc() で組み立てる。
+ *
+ * 連番は 1 から詰まっている前提で、抜けがあればそこで止めずに拾えるものを拾い、
+ * 呼び出し側で警告する。
+ */
+function scanPhotos(): { byId: Map<string, string[]>; extra: Map<string, number>; total: number } {
+  const byId = new Map<string, { n: number; file: string }[]>();
+  if (!existsSync(PHOTO_DIR)) return { byId: new Map(), extra: new Map(), total: 0 };
+
+  for (const file of readdirSync(PHOTO_DIR)) {
+    // @600 は数えない。1200 のほうだけを正とする
+    const m = /^(c\d{3})-(\d+)\.webp$/.exec(file);
+    if (!m) continue;
+    const [, id, num] = m;
+    if (!byId.has(id)) byId.set(id, []);
+    byId.get(id)!.push({ n: Number(num), file });
+  }
+
+  const out = new Map<string, string[]>();
+  const extra = new Map<string, number>();
+  let total = 0;
+  for (const [id, list] of byId) {
+    list.sort((a, b) => a.n - b.n);
+    const kept = list.slice(0, MAX_PHOTOS).map((x) => x.file);
+    if (list.length > MAX_PHOTOS) extra.set(id, list.length - MAX_PHOTOS);
+    out.set(id, kept);
+    total += kept.length;
+  }
+  return { byId: out, extra, total };
+}
+
 // ---------------------------------------------------------------- 本体
 
 /**
@@ -344,7 +382,8 @@ async function fetchSheetNames(auth: AuthClient, sheetId: string): Promise<strin
 function buildCircle(
   row: Row,
   pick: (key: keyof typeof COLS) => string | null,
-  warn: (m: string) => void
+  warn: (m: string) => void,
+  photos: string[]
 ): Circle {
   const id = (pick("id") ?? "").trim();
   const days = (() => {
@@ -452,8 +491,8 @@ function buildCircle(
       x: urlOrNull(pick("x"), "X", warn),
       website: urlOrNull(pick("website"), "公式サイト", warn),
     },
-    // 第1段階では画像処理をしない。仕様書 §7 は実データが増えてから
-    photos: [],
+    // public/photos にあるファイルを連番順に。@600 は入れない（仕様書 §7）
+    photos,
     tile_size: tileSize,
   };
 }
@@ -480,8 +519,18 @@ function validate(c: Circle, row: Row, warn: (m: string) => void) {
     if (d.getTime() < Date.now()) warn(`次の新歓の日付が過去（${c.next_recruit.date}）`);
   }
   if (c.photos.length === 0) {
-    const urls = (row[COLS.photoOk[0]] ?? "").trim();
-    warn(`写真0枚${urls ? "" : ""}（第1段階では画像処理を実装していないため常に0）`);
+    warn(`写真0枚（public/photos に ${c.id}-1.webp が無い）`);
+  } else {
+    // 連番の抜け。1 から詰まっていないと、UIの並びと README の説明がずれる
+    const nums = c.photos.map((f) => Number(/-(\d+)\.webp$/.exec(f)?.[1] ?? 0));
+    const missing = [];
+    for (let i = 1; i <= Math.max(...nums); i++) if (!nums.includes(i)) missing.push(i);
+    if (missing.length) warn(`写真の連番が飛んでいる（${missing.map((n) => `${c.id}-${n}.webp`).join(", ")} が無い）`);
+    // @600 が無いと一覧のサムネが404になる
+    for (const f of c.photos) {
+      const small = f.replace(/\.webp$/, "@600.webp");
+      if (!existsSync(`${PHOTO_DIR}/${small}`)) warn(`${small} が無い（一覧のサムネが読めない）`);
+    }
   }
   const lines = c.description.split("\n").map((s) => s.trim()).filter(Boolean);
   if (lines.length === 0) warn("紹介文が空");
@@ -530,6 +579,8 @@ async function main() {
     if (hit === undefined) missingCols.push(`${key} (${candidates[0]})`);
     else resolved.set(key, hit);
   }
+
+  const photoIndex = scanPhotos();
 
   const excluded: Excluded[] = [];
   const warnings: Warning[] = [];
@@ -593,11 +644,14 @@ async function main() {
     const genre = cell("genre");
     if (genre && !(GENRES as string[]).includes(genre)) warn(`ジャンルが不正（"${genre}"）→ その他`);
 
-    const circle = buildCircle(row, cell, warn);
+    const circle = buildCircle(row, cell, warn, photoIndex.byId.get(id) ?? []);
     if (genre && !(GENRES as string[]).includes(genre)) circle.genre = "その他";
 
     // 写真の掲載可否 = 不可 は除外しない。写真なしとして通す（仕様書 §4-5）
     if (cell("photoOk") === "不可") warn("写真の掲載可否 = 不可（写真なしとして掲載）");
+
+    const over = photoIndex.extra.get(id);
+    if (over) warn(`写真が${MAX_PHOTOS + over}枚。${MAX_PHOTOS + 1}枚目以降の${over}枚は無視した`);
 
     validate(circle, row, warn);
     circles.push(circle);
@@ -626,7 +680,18 @@ async function main() {
   else warnings.forEach((w) => lines.push(`  ${w.id.padEnd(6)}${w.message}`));
   lines.push("");
   lines.push("画像");
-  lines.push("  第1段階のため未実装。photos は全件 [] で出力している（docs/10-sync-spec.md §7）");
+  {
+    const used = circles.reduce((a, c) => a + c.photos.length, 0);
+    const withPhoto = circles.filter((c) => c.photos.length > 0).length;
+    const orphans = [...photoIndex.byId.keys()].filter((id) => !circles.some((c) => c.id === id));
+    lines.push(`  public/photos を走査 / 掲載 ${used}枚（${withPhoto}団体） / 写真なし ${circles.length - withPhoto}団体`);
+    if (photoIndex.extra.size > 0) {
+      for (const [id, n] of photoIndex.extra) lines.push(`  ${id.padEnd(6)}${MAX_PHOTOS + 1}枚目以降 ${n}枚を無視`);
+    }
+    if (orphans.length > 0) {
+      lines.push(`  公開対象にないIDの写真: ${orphans.join(", ")}（未使用）`);
+    }
+  }
   const report = lines.join("\n") + "\n";
 
   writeFileSync(OUT_REPORT, report, "utf8");
@@ -636,7 +701,7 @@ async function main() {
   // --- 出力
   const payload: CircleFile = {
     _note:
-      "npm run sync が生成した中間生成物。原本はスプレッドシート。手で編集しない（CLAUDE.md §1）。photos は第1段階では常に空。",
+      "npm run sync が生成した中間生成物。原本はスプレッドシート。手で編集しない（CLAUDE.md §1）。photos は public/photos の実ファイルを走査した結果。",
     circles,
   };
   const next = JSON.stringify(payload, null, 2) + "\n";
