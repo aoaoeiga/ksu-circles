@@ -378,15 +378,18 @@ function buildCircle(
     if (!extraText) warn("年会費以外の費用が「ある」なのに記述が空");
   } else extraCostNote = null;
 
-  // 掛け持ち: types/circle.ts は boolean | null。「条件つき」は true 扱いにして警告
+  // 掛け持ち: "できる" / "できない" / 条件つきは条件文をそのまま（仕様書 §6）
   const multiRaw = pick("multi");
-  let multi: boolean | null = null;
-  if (multiRaw?.startsWith("できる")) multi = true;
-  else if (multiRaw?.startsWith("できない")) multi = false;
+  let multi: string | null = null;
+  if (multiRaw?.startsWith("できる")) multi = "できる";
+  else if (multiRaw?.startsWith("できない")) multi = "できない";
   else if (multiRaw?.startsWith("条件つき")) {
-    multi = true;
     const cond = pick("multiCond");
-    warn(`掛け持ちが「条件つき」。型が boolean のため true として出す（条件: ${cond ?? "記述なし"}）`);
+    if (cond) multi = cond;
+    else {
+      multi = "条件つき";
+      warn("掛け持ちが「条件つき」なのに条件の記述が空");
+    }
   }
 
   const welcome = toISODate(pick("welcomeDate") ?? undefined);

@@ -23,16 +23,30 @@ export function membersText(c: Circle): string {
   return numLabel(c.member_count) + "人";
 }
 
-/** 掛け持ち。null を「できない」に落とさない（未確認と拒否は別物） */
+/**
+ * 掛け持ち。値は "できる" / "できない" / 条件文 / null（未確認）。
+ * null を「できない」に落とさない（未確認と拒否は別物）。
+ */
+
+/** 一覧カード。1行に収める必要があるので、条件文は出さず「条件つき」に畳む */
 export function multiText(c: Circle): string {
-  if (c.multi_club_ok === null || c.multi_club_ok === undefined) return "掛け持ち 未確認";
-  return c.multi_club_ok ? "掛け持ちできる" : "掛け持ちできない";
+  const v = c.multi_club_ok;
+  if (v === null || v === undefined) return "掛け持ち 未確認";
+  if (v === "できる") return "掛け持ちできる";
+  if (v === "できない") return "掛け持ちできない";
+  return "掛け持ち 条件つき";
 }
 
-/** 活動日カード下段の「掛け持ち できる」表記（docs/ui/07-content.md §3） */
+/**
+ * 活動日カード下段（docs/ui/07-content.md §3）。
+ * **こちらは条件文をそのまま出す。**一覧で畳んだ内容を確かめる場所がここしかない。
+ */
 export function multiDualText(c: Circle): string {
-  if (c.multi_club_ok === null || c.multi_club_ok === undefined) return "掛け持ち 未確認";
-  return c.multi_club_ok ? "掛け持ち できる" : "掛け持ち できない";
+  const v = c.multi_club_ok;
+  if (v === null || v === undefined) return "掛け持ち 未確認";
+  if (v === "できる") return "掛け持ち できる";
+  if (v === "できない") return "掛け持ち できない";
+  return "掛け持ち " + v;
 }
 
 /** 活動場所 ・ 掛け持ち の1行 */

@@ -43,7 +43,12 @@ export type Circle = {
   first_year_count: number | null;   // 保持するが画面には出さない
   gender: Gender | null;             // 実数。表示は genderRatio() を通す
 
-  multi_club_ok: boolean | null;     // 掛け持ち
+  /**
+   * 掛け持ち。"できる" / "できない" / 条件つきの場合はその条件文をそのまま入れる。
+   * null は未確認。**boolean にしない。**「条件つき」が true に潰れて条件が消える
+   * （docs/10-sync-spec.md §6 も条件文をそのまま持つ指定）
+   */
+  multi_club_ok: string | null;
   description: string;               // 紹介文。改行を含む
   leader_comment: { text: string; role: string } | null;  // role は "代表（3年）"。個人名を入れない
 
