@@ -11,6 +11,13 @@
 import type { Circle } from "@/types/circle";
 import { feeLabel, numLabel, timesLabel } from "@/lib/gender";
 
+// TODO(B-2): 後続タスクで新フィールドへ置き換えるまでの旧表示用キャスト。
+type LegacyCircle = Circle & {
+  multi_club_ok?: string | null;
+  active_times?: Record<string, [string, string]>;
+  extra_cost_note?: string | null;
+};
+
 /** 一覧カードの年会費。`¥0` と `未確認` を混同しない（CLAUDE.md §4） */
 export function feeText(c: Circle): string {
   if (c.annual_fee === null) return "未確認";
@@ -30,7 +37,7 @@ export function membersText(c: Circle): string {
 
 /** 一覧カード。1行に収める必要があるので、条件文は出さず「条件つき」に畳む */
 export function multiText(c: Circle): string {
-  const v = c.multi_club_ok;
+  const v = (c as LegacyCircle).multi_club_ok;
   if (v === null || v === undefined) return "掛け持ち 未確認";
   if (v === "できる") return "掛け持ちできる";
   if (v === "できない") return "掛け持ちできない";
@@ -42,7 +49,7 @@ export function multiText(c: Circle): string {
  * **こちらは条件文をそのまま出す。**一覧で畳んだ内容を確かめる場所がここしかない。
  */
 export function multiDualText(c: Circle): string {
-  const v = c.multi_club_ok;
+  const v = (c as LegacyCircle).multi_club_ok;
   if (v === null || v === undefined) return "掛け持ち 未確認";
   if (v === "できる") return "掛け持ち できる";
   if (v === "できない") return "掛け持ち できない";
@@ -56,7 +63,7 @@ export function placeDualText(c: Circle): string {
 
 /** 活動時間。曜日ごとに違えば timesLabel が並べて返す */
 export function timeText(c: Circle): string | null {
-  return timesLabel(c.active_days, c.active_times);
+  return timesLabel(c.active_days, (c as LegacyCircle).active_times);
 }
 
 /**
@@ -67,11 +74,12 @@ export function timeText(c: Circle): string | null {
  * を区別する（types/circle.ts, docs/13-schema-mapping.md §5）ので3分岐にする。
  */
 export function extraCostText(c: Circle): string {
-  if (c.extra_cost_note === null || c.extra_cost_note === undefined) {
+  const extraCostNote = (c as LegacyCircle).extra_cost_note;
+  if (extraCostNote === null || extraCostNote === undefined) {
     return "年会費以外の費用 未確認";
   }
-  if (c.extra_cost_note === "なし") return "年会費のほかにかかる費用はありません。";
-  return "別途：" + c.extra_cost_note;
+  if (extraCostNote === "なし") return "年会費のほかにかかる費用はありません。";
+  return "別途：" + extraCostNote;
 }
 
 /** 区分。大分類 ・ 公式の所属区分（docs/ui/07-content.md §1） */

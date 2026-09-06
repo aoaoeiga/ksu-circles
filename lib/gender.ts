@@ -1,4 +1,5 @@
-import type { Gender } from "@/types/circle";
+// TODO(B-2): male_ratio を受け取る実装へ切り替えるまでの旧UI互換型。
+type Gender = { male: number; female: number };
 
 /**
  * 男女の実数を、合計10の比率に丸めて表示用の文字列にする。
