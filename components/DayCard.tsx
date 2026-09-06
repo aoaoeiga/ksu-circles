@@ -9,8 +9,13 @@
 import { useSearchParams } from "next/navigation";
 import type { Circle } from "@/types/circle";
 import { CARD, EASE, EYEBROW, INK, INK_MID, MATCH, RULE, num } from "@/lib/design";
-import { DAY_LABELS } from "@/lib/gender";
-import { placeDualText, timeText } from "@/lib/labels";
+import { DAY_LABELS, timesLabel } from "@/lib/gender";
+import { placeDualText } from "@/lib/labels";
+
+// TODO(B-4): 活動時間の表示を削除するまで、旧生成データをここでだけ読む。
+type LegacyCircle = Circle & {
+  active_times?: Record<string, [string, string]>;
+};
 
 const big = (color: string) => ({
   fontFamily: "'Zen Kaku Gothic New',sans-serif",
@@ -42,7 +47,7 @@ export default function DayCard({ circle }: { circle: Circle }) {
 
 function Card({ circle, matched }: { circle: Circle; matched: number[] }) {
   const days = [...circle.active_days].sort((a, b) => a - b);
-  const time = timeText(circle);
+  const time = timesLabel(circle.active_days, (circle as LegacyCircle).active_times);
 
   return (
     <div style={{ ...CARD, marginTop: 20 }}>

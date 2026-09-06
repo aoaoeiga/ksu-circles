@@ -56,7 +56,7 @@ export type Circle = {
   surveyed_at: string;               // "2026-09"
   sns: { instagram: string | null; x: string | null; website: string | null };
 
-  /** /public/photos 配下のファイル名。一覧タイルと OGP 用。null は未確認 */
+  /** /public/photos 配下のファイル名。一覧タイルと OGP 用。null は写真なし */
   icon: string | null;
   /** /public/photos 配下のファイル名。ヒーロー用、最大3枚 */
   photos: string[];
