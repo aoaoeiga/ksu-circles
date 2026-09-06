@@ -1,28 +1,21 @@
-// TODO(B-2): male_ratio を受け取る実装へ切り替えるまでの旧UI互換型。
-type Gender = { male: number; female: number };
-
 /**
- * 男女の実数を、合計10の比率に丸めて表示用の文字列にする。
+ * 男子の割合（%）を、合計10の比率に丸めて表示用の文字列にする。
  *
  * ルール（要件定義 §5 / docs/ui/07-content.md §4-1）
  * - 合計が必ず10になる
- * - 1人でもいれば0にしない。56人中2人でも "9 : 1"
- * - 本当に0人なら "女子のみ" / "男子のみ"
- * - 未確認は "—"
+ * - 1%でもいれば0にしない
+ * - 0%なら "女子のみ"、100%なら "男子のみ"
+ * - 未確認は null
  *
  * 一覧と詳細の両方からこの関数を呼ぶ。片方だけ独自実装しない。
  */
-export function genderRatio(g: Gender | null | undefined): string {
-  if (!g) return "—";
-  const { male, female } = g;
-  if (!Number.isFinite(male) || !Number.isFinite(female)) return "—";
+export function genderRatio(maleRatio: number | null | undefined): string | null {
+  if (maleRatio === null || maleRatio === undefined) return null;
+  if (!Number.isFinite(maleRatio) || maleRatio < 0 || maleRatio > 100) return null;
+  if (maleRatio === 0) return "女子のみ";
+  if (maleRatio === 100) return "男子のみ";
 
-  const total = male + female;
-  if (total <= 0) return "—";
-  if (male === 0) return "女子のみ";
-  if (female === 0) return "男子のみ";
-
-  let m = Math.round((male / total) * 10);
+  let m = Math.round(maleRatio / 10);
   if (m < 1) m = 1;
   if (m > 9) m = 9;
   return `${m} : ${10 - m}`;

@@ -24,8 +24,6 @@ import {
   num,
 } from "@/lib/design";
 import {
-  extraCostText,
-  recruitDateText,
   recruitingLabel,
   surveyedText,
 } from "@/lib/labels";
@@ -37,7 +35,26 @@ import type { Circle } from "@/types/circle";
 type LegacyCircle = Circle & {
   gender?: { male: number; female: number } | null;
   next_recruit?: { date: string | null; what: string } | null;
+  extra_cost_note?: string | null;
 };
+
+// TODO(B-4): 削除予定の画面を残したまま B-2 の共通関数を先に更新するための互換表示。
+function legacyMaleRatio(gender: LegacyCircle["gender"]): number | null {
+  if (!gender || gender.male + gender.female <= 0) return null;
+  return (gender.male / (gender.male + gender.female)) * 100;
+}
+
+function legacyRecruitDate(date: string | null | undefined): string | null {
+  if (!date) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  return m ? `${m[1]}.${m[2]}.${m[3]}` : date;
+}
+
+function legacyExtraCostText(note: string | null | undefined): string {
+  if (note === null || note === undefined) return "年会費以外の費用 未確認";
+  if (note === "なし") return "年会費のほかにかかる費用はありません。";
+  return "別途：" + note;
+}
 
 export const dynamicParams = false;
 
@@ -61,7 +78,7 @@ export default async function CirclePage(props: PageProps<"/c/[id]">) {
   if (!c) notFound();
   const legacy = c as LegacyCircle;
 
-  const gender = genderRatio(legacy.gender);
+  const gender = genderRatio(legacyMaleRatio(legacy.gender)) ?? "—";
   const bigNum = num(28);
   const dash = num(28, INK_MID);
   const wordNum = {
@@ -113,7 +130,7 @@ export default async function CirclePage(props: PageProps<"/c/[id]">) {
         ? { ...pill, color: INK, boxShadow: "inset 0 0 0 1px " + INK }
         : { ...pill, color: INK_MID, boxShadow: "inset 0 0 0 1px " + INK_MID };
 
-  const date = recruitDateText(legacy.next_recruit?.date);
+  const date = legacyRecruitDate(legacy.next_recruit?.date);
   const hasDate = !!date;
 
   const snsBtn = {
@@ -205,7 +222,7 @@ export default async function CirclePage(props: PageProps<"/c/[id]">) {
               textWrap: "pretty",
             }}
           >
-            {extraCostText(c)}
+            {legacyExtraCostText(legacy.extra_cost_note)}
           </div>
         </Section>
 
