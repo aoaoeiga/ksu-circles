@@ -12,6 +12,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Circle } from "@/types/circle";
+
+// TODO(B-4): 掛け持ちフィルターを削除するまでの旧表示用キャスト。
+type LegacyCircle = Circle & { multi_club_ok?: string | null };
 import {
   BG,
   BIG_BTN,
@@ -87,7 +90,8 @@ function passes(o: Circle, f: Filters): boolean {
   // 掛け持ち可の絞り込み。条件つき（条件文が入っている）は可として通すが、
   // **未確認（null）は通さない。**2つ目のサークルを探している人が見る絞り込みなので、
   // 聞けていない団体を可の側に混ぜると「行ってみたら禁止だった」が起きる（CLAUDE.md §3）
-  if (f.multi && (o.multi_club_ok === null || o.multi_club_ok === "できない")) return false;
+  const multiClubOk = (o as LegacyCircle).multi_club_ok;
+  if (f.multi && (multiClubOk === null || multiClubOk === "できない")) return false;
   return true;
 }
 
@@ -158,7 +162,9 @@ export default function HomeScreen({
   const hiddenByMulti = useMemo(() => {
     if (!f.multi) return 0;
     const withoutMulti = { ...f, multi: false };
-    return circles.filter((c) => passes(c, withoutMulti) && c.multi_club_ok === null).length;
+    return circles.filter(
+      (c) => passes(c, withoutMulti) && (c as LegacyCircle).multi_club_ok === null
+    ).length;
   }, [circles, f]);
 
   // --- 絞り込みの反映（移植元の measure / flip / applyFilters） -------------

@@ -31,6 +31,13 @@ import {
 } from "@/lib/labels";
 import Hero from "@/components/Hero";
 import DayCard, { DayCardStatic } from "@/components/DayCard";
+import type { Circle } from "@/types/circle";
+
+// TODO(B-4): 詳細画面を新フィールドへ移すまでの旧表示用キャスト。
+type LegacyCircle = Circle & {
+  gender?: { male: number; female: number } | null;
+  next_recruit?: { date: string | null; what: string } | null;
+};
 
 export const dynamicParams = false;
 
@@ -52,8 +59,9 @@ export default async function CirclePage(props: PageProps<"/c/[id]">) {
   const { id } = await props.params;
   const c = getCircle(id);
   if (!c) notFound();
+  const legacy = c as LegacyCircle;
 
-  const gender = genderRatio(c.gender);
+  const gender = genderRatio(legacy.gender);
   const bigNum = num(28);
   const dash = num(28, INK_MID);
   const wordNum = {
@@ -105,7 +113,7 @@ export default async function CirclePage(props: PageProps<"/c/[id]">) {
         ? { ...pill, color: INK, boxShadow: "inset 0 0 0 1px " + INK }
         : { ...pill, color: INK_MID, boxShadow: "inset 0 0 0 1px " + INK_MID };
 
-  const date = recruitDateText(c.next_recruit?.date);
+  const date = recruitDateText(legacy.next_recruit?.date);
   const hasDate = !!date;
 
   const snsBtn = {
@@ -257,7 +265,7 @@ export default async function CirclePage(props: PageProps<"/c/[id]">) {
                 textWrap: "pretty",
               }}
             >
-              {c.next_recruit?.what ?? "決まりしだい、このページに載せます。"}
+              {legacy.next_recruit?.what ?? "決まりしだい、このページに載せます。"}
             </div>
           </div>
         </Section>

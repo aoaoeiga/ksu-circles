@@ -29,6 +29,13 @@ import type {
   Recruiting,
 } from "../types/circle.ts";
 
+// TODO(B-3): 新シート変換へ置き換えるまでの旧sync検証用キャスト。
+type LegacyCircle = Circle & {
+  gender?: { male: number; female: number } | null;
+  active_times?: Record<string, [string, string]>;
+  next_recruit?: { date: string | null; what: string } | null;
+};
+
 // ---------------------------------------------------------------- 設定
 
 const OUT_JSON = "data/circles.json";
@@ -494,29 +501,30 @@ function buildCircle(
     // public/photos にあるファイルを連番順に。@600 は入れない（仕様書 §7）
     photos,
     tile_size: tileSize,
-  };
+  } as unknown as Circle;
 }
 
 /** 仕様書 §5 の検証。除外はしない */
 function validate(c: Circle, row: Row, warn: (m: string) => void) {
-  if (c.gender && c.member_count !== null) {
-    const sum = c.gender.male + c.gender.female;
+  const legacy = c as LegacyCircle;
+  if (legacy.gender && c.member_count !== null) {
+    const sum = legacy.gender.male + legacy.gender.female;
     if (sum !== c.member_count) {
-      warn(`所属人数 ${c.member_count} ≠ 男${c.gender.male} + 女${c.gender.female}`);
+      warn(`所属人数 ${c.member_count} ≠ 男${legacy.gender.male} + 女${legacy.gender.female}`);
     }
   }
   if (c.beginner_count !== null && c.member_count !== null && c.beginner_count > c.member_count) {
     warn(`初心者 ${c.beginner_count} > 所属人数 ${c.member_count}`);
   }
-  if (c.active_days.length > 0 && Object.keys(c.active_times).length === 0) {
+  if (c.active_days.length > 0 && Object.keys(legacy.active_times ?? {}).length === 0) {
     warn("活動曜日にチェックがあるが活動時間が空");
   }
   if (c.annual_fee === null) {
     warn("年会費が空欄（未確認か0円か要確認）");
   }
-  if (c.next_recruit?.date) {
-    const d = new Date(c.next_recruit.date + "T00:00:00");
-    if (d.getTime() < Date.now()) warn(`次の新歓の日付が過去（${c.next_recruit.date}）`);
+  if (legacy.next_recruit?.date) {
+    const d = new Date(legacy.next_recruit.date + "T00:00:00");
+    if (d.getTime() < Date.now()) warn(`次の新歓の日付が過去（${legacy.next_recruit.date}）`);
   }
   if (c.photos.length === 0) {
     warn(`写真0枚（public/photos に ${c.id}-1.webp が無い）`);
