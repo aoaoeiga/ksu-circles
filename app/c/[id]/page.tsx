@@ -38,7 +38,8 @@ export async function generateMetadata(props: PageProps<"/c/[id]">): Promise<Met
   const { id } = await props.params;
   const c = getCircle(id);
   if (!c) return {};
-  const ogFile = c.icon ?? c.photos[0] ?? null;
+  const ogFile = c.photos[0] ?? c.icon ?? null;
+  const ogUsesPhoto = c.photos.length > 0;
   return {
     title: `${c.short_name} | 京産大サークル名鑑`,
     description: c.one_liner,
@@ -47,8 +48,8 @@ export async function generateMetadata(props: PageProps<"/c/[id]">): Promise<Met
           images: [
             {
               url: photoSrc(ogFile),
-              width: c.icon ? 400 : 1200,
-              height: c.icon ? 400 : 800,
+              width: ogUsesPhoto ? 1200 : 400,
+              height: ogUsesPhoto ? 800 : 400,
               alt: c.short_name,
             },
           ],

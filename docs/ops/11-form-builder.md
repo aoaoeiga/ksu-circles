@@ -1,11 +1,65 @@
-# フォームを自動生成する（Apps Script）
+# フォームを自動生成する（Apps Script・旧版記録）
 
 作成: 2026/08/30 ／ 東田
-用途: **40問のフォームを手打ちせずに1分で作る。**設問の中身は `09-form-questions.md` と同じ。
+用途: 8/30版の40問フォームを生成した旧 `Code.gs` の記録。
+
+> [!CAUTION]
+> **9/2版のフォームとスプレッドシートへ置き換え済み。下の `buildForm()` は再実行しない。**
+> 再実行すると旧40問のフォームと別のスプレッドシートがもう1組作られる。現行の設問は `09-form-questions.md` の36問。
 
 ---
 
-## 手順
+## 9/2版で使う `rebuildLookups`
+
+9/2版ではフォームを作り直さない。`掲載データ` のVLOOKUPを回答の列番号ではなく、見出し名から引き直すため、次の `rebuildLookups` だけを使う。
+
+1. 使用中のスプレッドシートを開く
+2. `拡張機能` → `Apps Script` を開く
+3. 次の関数を貼り、`rebuildLookups` を1回実行する
+4. フォーム末尾へ `代表からの一言` を追加したあとは、もう一度実行する
+
+```javascript
+// 掲載データ の VLOOKUP を、回答 の見出し名から引き直す。何度実行してもよい。
+function rebuildLookups() {
+  const ss  = SpreadsheetApp.openById('1rS2ijbwdYtQBCBorgk2vE1FMKx2rl0i5CBk_0DXJ21c');
+  const ans = ss.getSheetByName('回答');
+  const pub = ss.getSheetByName('掲載データ');
+
+  // 掲載データの列名 → 回答の設問名
+  const MAP = {
+    '通称': '通称（サイトに大きく出す名前）', '正式名称': '正式名称', '区分': '公式の所属区分',
+    'ジャンル': 'ジャンル', '一言': '一言で言うと', '週回数': '週に何回', '活動場所': '活動場所',
+    '参加の緩さ': '参加の緩さ', '先輩の呼び方': '先輩の呼び方', '年会費状況': '年会費の状況', '年会費金額': '年会費の金額（円）',
+    '所属人数': '所属人数', '1年生': '1年生の人数', '男子割合': '男子の割合（%）',
+    '初心者数': '初心者から始めた人数', '掛け持ち': '掛け持ちしている人', '掛け持ち条件': '掛け持ちの条件',
+    'いま入れるか': 'いま入れるか', '春以外の募集': '春以外の募集に興味があるか',
+    'Instagram': 'Instagram のURL', 'X': 'X のURL', '公式サイト': '公式サイトのURL',
+    'アイコン写真_元': 'アイコン写真のURL', '写真1_元': '写真URL 1枚目', '写真2_元': '写真URL 2枚目',
+    '写真3_元': '写真URL 3枚目', '顔出しNG': '顔出しNGの部員がいるか', '聞き取りメモ': '聞き取りメモ',
+    // ここから追加列（無ければ末尾に作る）。先輩の呼び方 も現状の掲載データに列が無いので末尾に足される
+    '取材日': '取材日', '役職': '面談相手の役職と学年', '代表からの一言': '代表からの一言',
+  };
+
+  const aHdr = ans.getRange(1, 1, 1, ans.getLastColumn()).getValues()[0];  // A=Timestamp, B=団体ID, …
+  let   pHdr = pub.getRange(1, 1, 1, pub.getLastColumn()).getValues()[0];
+  const last = pub.getLastRow();
+  const idx  = q => { const i = aHdr.indexOf(q); if (i < 1) throw new Error('回答に無い設問: ' + q); return i; }; // B が 1
+
+  for (const [col, q] of Object.entries(MAP)) {
+    if (q === '代表からの一言' && aHdr.indexOf(q) < 0) continue;   // フォームに設問を足す前はスキップ
+    let c = pHdr.indexOf(col) + 1;
+    if (c === 0) { c = pHdr.length + 1; pub.getRange(1, c).setValue(col); pHdr.push(col); }
+    const i = idx(q);
+    const f = [];
+    for (let r = 2; r <= last; r++) f.push([`=IFERROR(VLOOKUP($A${r},'回答'!$B:$BZ,${i},FALSE),"")`]);
+    pub.getRange(2, c, last - 1, 1).setFormulas(f);
+  }
+}
+```
+
+---
+
+## 旧40問フォームの生成手順（実行しない）
 
 1. [script.google.com](https://script.google.com) を開いて「新しいプロジェクト」
 2. 出てきたコードを全部消して、下の `Code.gs` を丸ごと貼る

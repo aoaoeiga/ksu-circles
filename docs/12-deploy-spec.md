@@ -1,6 +1,6 @@
 # 公開（デプロイ）仕様
 
-作成: 2026/08/30 ／ 東田
+作成: 2026/08/30 ／ 更新: 2026/09/09 ／ 東田
 用途: **Claude Code に渡して実装させる。**サイトを公開できる状態にするまで。
 前提: UIはできている。データは `10-sync-spec.md` の `npm run sync` で `circles.json` が生成される。
 
@@ -21,16 +21,14 @@
 ```
 /app
   page.tsx                 一覧（S-01）
-  c/[id]/page.tsx          団体ページ（S-02）
-  opengraph-image.tsx      OGP画像（団体ごと）
+  c/[id]/page.tsx          団体ページ（S-02）＋団体ごとのOGPメタデータ
   not-found.tsx
   robots.ts
   sitemap.ts
 /components
 /data
   circles.json             ← sync が生成。手で直さない
-  .image-cache.json        （gitignore）
-/public/photos             ← sync が生成。gitに含める
+/public/photos             ← 手元で変換して配置。syncは走査のみ。gitに含める
 /scripts
   sync.ts                  10-sync-spec.md の実装
   draft.ts
@@ -55,18 +53,32 @@
 
 ## 3. データの読み込み
 
-`circles.json` をビルド時に `import` するだけ。fetchしない。
+データの流れは次のとおり。
 
-型は `/types/circle.ts` に定義して、`04-dummy-data.json` と同じ形にする。**ダミーと本番を差し替えるだけで動く状態を保つ。**
+```
+Googleフォーム（取材者が入力）
+   ↓
+回答 タブ
+   ↓ VLOOKUP
+掲載データ タブ ─┐
+団体マスタ K列「大分類」 ─┼─ npm run sync → data/circles.json
+public/photos（変換済み） ─┘                 （写真は走査のみ）
+                                                ↓ build時にimport
+                                      一覧＋団体ページを静的生成
+```
+
+syncは `掲載データ` タブを本体として読み、`division` だけは `団体マスタ` のK列 `大分類` から読む。`circles.json` はビルド時に `import` するだけで、画面からfetchしない。
+
+型は `/types/circle.ts` に定義する。`data/circles.sample.json` も同じ形にし、ダミーと本番を差し替えるだけで動く状態を保つ。
 
 ### 3-1. 男女比の丸め
 
-JSONには実数（`{male, female}`）が入っている。**表示のときに合計10へ丸める。**共通関数にする。
+JSONには `male_ratio` として男子の割合（0〜100）が入る。**表示のときに合計10へ丸める。**共通関数 `genderRatio()` にする。
 
-- 合計が10になるよう調整（四捨五入で9や11になったら人数の多い側で吸収）
-- **1人でもいれば0にしない。**56人中2人でも `9 : 1`
-- 本当に0人なら `女子のみ` / `男子のみ` の文字列を返す
-- `gender` が `null` なら `—`
+- 合計が10になるように丸める
+- 1%でもあれば0にしない。1%は `1 : 9`、99%は `9 : 1`
+- 0%は `女子のみ`、100%は `男子のみ` の文字列を返す
+- `male_ratio` が `null` なら `—`
 
 この関数は一覧と詳細の両方から呼ぶ。片方だけ実装しない。
 
@@ -74,11 +86,14 @@ JSONには実数（`{male, female}`）が入っている。**表示のときに�
 
 ## 4. 画像
 
-`sync` が `/public/photos` に `c001-1.webp`（幅1200）と `c001-1@600.webp` を出している。**変換済みなので `next/image` の最適化は使わない**（`unoptimized`）。二重に処理する意味がない。
+syncは画像を変換しない。手元で変換したファイルを `/public/photos` に置き、syncはファイル名を走査して `icon` と `photos` を組み立てる。**変換済みなので `next/image` の最適化は使わない**（`unoptimized`）。
 
-- ヒーロー: 1200を使う。1枚目だけ `priority`、2枚目以降は遅延
-- 一覧のサムネ: `@600` を使う
-- `width` / `height` を必ず指定する（3:2固定なので `1200 / 800`）。**指定しないとスクロール中に画面が飛ぶ**
+- アイコン: `{id}-icon.webp`。1:1・幅400の1枚だけで、`@600` は作らない
+- ヒーロー写真: `{id}-{n}.webp`（3:2・幅1200）と `{id}-{n}@600.webp`（幅600）。最大3枚
+- 一覧タイル: `icon`、なければ `photos[0]` の `@600`。両方なければジャンル色
+- ヒーロー: `photos` を最大3枚。photosがなくiconだけならiconを使う
+- OGP: photosが1枚でもあれば `photos[0]`（1200×800）。photosがなくiconだけならicon（400×400）
+- `<img>` の `width` / `height` を必ず指定する。指定しないとスクロール中に画面が飛ぶ
 
 ---
 
@@ -90,7 +105,7 @@ JSONには実数（`{male, female}`）が入っている。**表示のときに�
 
 | 環境 | ブランチ | 含める団体 | 見え方 |
 |---|---|---|---|
-| 本番 | `main` | `公開してよいか = OK` のみ | 通常公開 |
+| 本番 | `main` | `公開可否 = OK` のみ | 通常公開 |
 | 確認用 | `preview` | `OK` ＋ `確認中` | `noindex`、全ページ上部に確認用バーを出す |
 
 - 環境変数 `INCLUDE_UNCONFIRMED=1` のときだけ `確認中` を含める。Vercel の `preview` ブランチにこれを設定する
@@ -98,7 +113,7 @@ JSONには実数（`{male, female}`）が入っている。**表示のときに�
 - 確認用の全ページ上部に、`ink` 地のバーを固定で出す: `これは掲載前の確認用ページです。まだ公開されていません。`
 - 団体に送るURLは `https://preview-〇〇.vercel.app/c/c042` の形
 
-OKが出たらシートの `公開してよいか` を `OK` にして、`main` にマージすれば本番に出る。
+OKが出たら `掲載データ` の `公開可否` を `OK` にして、`main` にマージすれば本番に出る。
 
 ---
 
@@ -108,9 +123,10 @@ OKが出たらシートの `公開してよいか` を `OK` にして、`main` �
 
 **OGPは団体ごとに出す。**リンクはInstagramのDMで共有されるので、カードの見え方がそのままクリック率になる。
 
-- `opengraph-image.tsx` で1200×630を生成
-- 写真がある団体は1枚目を敷いて、暗幕＋団体名を白で重ねる（ヒーローと同じ組み方）
-- 写真がない団体はジャンル色ベタ塗りに団体名
+- 団体ページのmetadataから画像を指定する
+- `photos` が1枚でもあれば `photos[0]` を1200×800として指定する
+- `photos` がなく `icon` だけなら、iconを400×400として指定する
+- どちらもなければ団体固有の画像は指定しない
 - `title` は `団体名 | 京産大サークル名鑑`、`description` はキャッチコピー
 
 `sitemap.ts` で全団体ページを列挙する。
@@ -152,7 +168,7 @@ OKが出たらシートの `公開してよいか` を `OK` にして、`main` �
 ## 9. 運用コマンド
 
 ```bash
-npm run sync        # シート＋写真 → circles.json + /public/photos
+npm run sync        # 掲載データ＋団体マスタ＋写真走査 → circles.json
 npm run dev         # ローカル確認
 npm run build       # 本番ビルド（公開対象の件数をログに出す）
 git add -A && git commit -m "sync 2026-09-14" && git push

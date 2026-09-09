@@ -108,17 +108,26 @@ GitHub にリポジトリを作って push。Vercel でインポートするだ�
 
 ---
 
-## STEP 5 — sync を作る（面談が5件たまってから）
+## STEP 5 — sync を作る（9/2版シート）
 
 ```
 docs/10-sync-spec.md と docs/13-schema-mapping.md を読んで、scripts/sync.ts を実装して。
+9/2版スプレッドシートの「掲載データ」タブと「団体マスタ」を読み、
+Google API の読み込みと行→Circleの変換を別関数にする。
 出力する JSON は types/circle.ts の形に完全に一致させる。特に:
-- 公開してよいか = OK 以外はビルドから除外する
+- 通称が空の行は未面談としてスキップする
+- 公開可否 = OK 以外はビルドから除外する。INCLUDE_UNCONFIRMED=1 のときだけ確認中も含める
+- OKでも紹介文かキャッチコピーが空なら確認中扱いにして警告する
+- division は団体マスタのK列「大分類」から読む。空なら「その他」＋警告
 - annual_fee の 0（無料）と null（未確認）を混同しない
-- gender は実数のまま出す。比率に丸めない
+- male_ratio は男子の割合（%）を0〜100の数値で保持し、比率への丸めは画面側に任せる
+- frequency / ease / senior_call / multi_club は回答文字列を保つ
+- leader_comment は「代表からの一言」と「役職」、surveyed_at は「取材日」から作る
 - tile_size はシートの列から読む。空なら "M"
-- 画像は 3:2 クロップ、WebP、幅1200と600、EXIF削除
+- シートの写真URL列は読まない。public/photos を走査して {id}-icon.webp を icon、
+  {id}-{n}.webp（最大3枚）を photos にする。@600 は配列へ入れない
 - 冪等にする。変化がなければ書き込まない
+- scripts/fixtures/sheet-sample.json の匿名データで、変換だけを node --test にかける
 ```
 
-**空のシートで作らせない。**実データが5〜10件入ってから渡す。
+Google認証がない環境では `npm run sync` を実行せず、フィクスチャで確認する。
