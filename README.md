@@ -16,7 +16,7 @@
 | `PROMPT.md` | STEP 1〜5 の貼り付け用プロンプト |
 | `docs/01-requirements.md` | 要件定義。判断に迷ったらここに戻る |
 | `docs/12-deploy-spec.md` | 公開までの構成 |
-| `docs/10-sync-spec.md` | シート→JSON＋画像の同期スクリプト仕様 |
+| `docs/10-sync-spec.md` | シート→JSONの同期と、配置済み写真の走査仕様 |
 | `docs/ui/` | UIの仕様書（Claude Design 用。**実装済みの根拠**） |
 | `docs/ops/` | Googleフォームの設問と生成スクリプト |
 | `data/circles.sample.json` | ダミー8団体。実在団体名は使っていない |
@@ -29,12 +29,15 @@
 
 ```
 Googleフォーム（面談中に自分で入力）
-   ↓
-スプレッドシート  1行 = 1団体   ← 掲載データの唯一の原本
-   ↓ npm run sync
-data/circles.json ＋ public/photos
+   ↓ 回答
+スプレッドシート
+   ├─ 掲載データ タブ（掲載本文・公開可否など）
+   └─ 団体マスタ（K列「大分類」）
+   ↓ npm run sync（2タブを読む＋public/photosを走査）
+data/circles.json
+   ＋ public/photos（手元で変換して配置）
    ↓ git push
 Vercel が自動で公開
 ```
 
-`circles.json` を手で直さない。直すのはシート側。
+`circles.json` を手で直さない。掲載内容を直すのはシート側。写真は変換済みファイルを `public/photos` に置く。
