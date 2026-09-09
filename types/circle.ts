@@ -51,7 +51,7 @@ export type Circle = {
   description: string;               // 紹介文。改行を含む
   leader_comment: { text: string; role: string } | null;  // role は "代表（3年）"。個人名を入れない
 
-  recruiting: Recruiting | null;     // 新歓カードのバッジ
+  recruiting: Recruiting | null;     // 「いま入れるか」のバッジ
 
   surveyed_at: string;               // "2026-09"
   sns: { instagram: string | null; x: string | null; website: string | null };

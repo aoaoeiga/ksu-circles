@@ -3,7 +3,10 @@ import "./globals.css";
 import { BG } from "@/lib/design";
 import { ALLOW_INDEXING } from "@/lib/seo";
 
+const deploymentHost = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
+
 export const metadata: Metadata = {
+  metadataBase: new URL(deploymentHost ? `https://${deploymentHost}` : "http://localhost:3000"),
   title: "京産大サークル名鑑",
   description: "京都産業大学の課外活動団体を、同じ項目で横断して比べられる名鑑。",
 

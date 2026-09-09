@@ -33,7 +33,7 @@ export default function PhotoTile({
 }: Props) {
   const [failed, setFailed] = useState(false);
 
-  const file = circle.photos && circle.photos.length > 0 ? circle.photos[0] : null;
+  const file = circle.icon ?? circle.photos[0] ?? null;
   const hasPhoto = !!file && !failed;
 
   return (

@@ -40,10 +40,10 @@ export default function Hero({ circle }: { circle: Circle }) {
   const [dragX, setDragX] = useState(0);
   const [hiResFile, setHiResFile] = useState<string | null>(null);
   const reduced = usePrefersReducedMotion();
-  const readySignalled = useRef(false);
   const firstImgRef = useRef<HTMLImageElement>(null);
 
-  const photos = (circle.photos || []).slice(0, 8).filter((p) => !broken[p]);
+  const heroFiles = circle.photos.length > 0 ? circle.photos.slice(0, 3) : circle.icon ? [circle.icon] : [];
+  const photos = heroFiles.filter((p) => !broken[p]);
   const hasPhoto = photos.length > 0;
   const showCarousel = photos.length > 1;
   const idx = photos.length ? slide % photos.length : 0;
@@ -55,8 +55,6 @@ export default function Hero({ circle }: { circle: Circle }) {
   // **ここが「描画できて写真も出た」と言うまで、ゴーストは外れない。**
   // タイマーで外すと、写真が読めていない一瞬に地の色が見えてしまう。
   const signalReady = useCallback(() => {
-    if (readySignalled.current) return;
-    readySignalled.current = true;
     // 2フレーム待って、確実に描画されてから外す
     requestAnimationFrame(() => requestAnimationFrame(dismissZoomGhost));
   }, []);
@@ -74,17 +72,20 @@ export default function Hero({ circle }: { circle: Circle }) {
     if (img && img.complete && img.naturalWidth > 0) signalReady();
   }, [firstFile, signalReady]);
 
-  // 1枚目は、一覧のタイルと同じ @600 を先に出す。**ゴーストが見せていたのと同じ画像**
-  // なので、外れた瞬間に絵が変わらない。幅1200が読めてから静かに差し替える。
+  // 1枚目は @600 を先に出し、幅1200が読めてから静かに差し替える。
+  // 一覧が icon でヒーローが photos[0] の場合は、ゴーストをフェードして切り替える。
   useEffect(() => {
     if (!firstFile) return;
     const img = new window.Image();
-    img.onload = () => setHiResFile(firstFile);
+    img.onload = () => {
+      setHiResFile(firstFile);
+      signalReady();
+    };
     img.src = photoSrc(firstFile);
     return () => {
       img.onload = null;
     };
-  }, [firstFile]);
+  }, [firstFile, signalReady]);
 
   // 「どの写真の高解像度が読めたか」で持つ。差し替え待ちを state のリセットで表さない
   const firstHiRes = firstFile !== null && hiResFile === firstFile;

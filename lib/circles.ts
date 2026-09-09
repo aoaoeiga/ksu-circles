@@ -9,8 +9,7 @@
 import type { Circle, CircleFile } from "@/types/circle";
 import file from "@/data/circles.json";
 
-// JSON の import は配列リテラルをタプルに推論しない（active_times の [string, string] が
-// string[] になる）ので、ここで一度だけ型を当てる。形の保証は sync 側の責任。
+// JSON import の推論結果に、ここで一度だけ型を当てる。形の保証は sync 側の責任。
 const data = file as unknown as CircleFile;
 
 /** 公開対象の全団体。並び順は circles.json のまま（＝シートの行順） */

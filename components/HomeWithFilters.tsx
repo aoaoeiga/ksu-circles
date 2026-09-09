@@ -31,7 +31,6 @@ export default function HomeWithFilters({ circles }: { circles: Circle[] }) {
     genres: list(sp.get("genres")),
     fee,
     beginner: sp.get("beginner") === "1",
-    multi: sp.get("multi") === "1",
   };
 
   return <HomeScreen circles={circles} initial={initial} />;
