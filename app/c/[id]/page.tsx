@@ -22,39 +22,11 @@ import {
   SHADOW,
   WHITE,
   num,
+  photoSrc,
 } from "@/lib/design";
-import {
-  recruitingLabel,
-  surveyedText,
-} from "@/lib/labels";
+import { recruitingLabel, surveyedText } from "@/lib/labels";
 import Hero from "@/components/Hero";
 import DayCard, { DayCardStatic } from "@/components/DayCard";
-import type { Circle } from "@/types/circle";
-
-// TODO(B-4): 詳細画面を新フィールドへ移すまでの旧表示用キャスト。
-type LegacyCircle = Circle & {
-  gender?: { male: number; female: number } | null;
-  next_recruit?: { date: string | null; what: string } | null;
-  extra_cost_note?: string | null;
-};
-
-// TODO(B-4): 削除予定の画面を残したまま B-2 の共通関数を先に更新するための互換表示。
-function legacyMaleRatio(gender: LegacyCircle["gender"]): number | null {
-  if (!gender || gender.male + gender.female <= 0) return null;
-  return (gender.male / (gender.male + gender.female)) * 100;
-}
-
-function legacyRecruitDate(date: string | null | undefined): string | null {
-  if (!date) return null;
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
-  return m ? `${m[1]}.${m[2]}.${m[3]}` : date;
-}
-
-function legacyExtraCostText(note: string | null | undefined): string {
-  if (note === null || note === undefined) return "年会費以外の費用 未確認";
-  if (note === "なし") return "年会費のほかにかかる費用はありません。";
-  return "別途：" + note;
-}
 
 export const dynamicParams = false;
 
@@ -66,9 +38,22 @@ export async function generateMetadata(props: PageProps<"/c/[id]">): Promise<Met
   const { id } = await props.params;
   const c = getCircle(id);
   if (!c) return {};
+  const ogFile = c.icon ?? c.photos[0] ?? null;
   return {
     title: `${c.short_name} | 京産大サークル名鑑`,
     description: c.one_liner,
+    openGraph: ogFile
+      ? {
+          images: [
+            {
+              url: photoSrc(ogFile),
+              width: c.icon ? 400 : 1200,
+              height: c.icon ? 400 : 800,
+              alt: c.short_name,
+            },
+          ],
+        }
+      : undefined,
   };
 }
 
@@ -76,9 +61,8 @@ export default async function CirclePage(props: PageProps<"/c/[id]">) {
   const { id } = await props.params;
   const c = getCircle(id);
   if (!c) notFound();
-  const legacy = c as LegacyCircle;
 
-  const gender = genderRatio(legacyMaleRatio(legacy.gender)) ?? "—";
+  const gender = genderRatio(c.male_ratio) ?? "—";
   const bigNum = num(28);
   const dash = num(28, INK_MID);
   const wordNum = {
@@ -129,9 +113,6 @@ export default async function CirclePage(props: PageProps<"/c/[id]">) {
       : recruiting === "4月のみ"
         ? { ...pill, color: INK, boxShadow: "inset 0 0 0 1px " + INK }
         : { ...pill, color: INK_MID, boxShadow: "inset 0 0 0 1px " + INK_MID };
-
-  const date = legacyRecruitDate(legacy.next_recruit?.date);
-  const hasDate = !!date;
 
   const snsBtn = {
     flex: 1,
@@ -213,17 +194,6 @@ export default async function CirclePage(props: PageProps<"/c/[id]">) {
               </div>
             ))}
           </div>
-          <div
-            style={{
-              fontSize: 12,
-              color: INK_MID,
-              marginTop: 12,
-              lineHeight: 1.8,
-              textWrap: "pretty",
-            }}
-          >
-            {legacyExtraCostText(legacy.extra_cost_note)}
-          </div>
         </Section>
 
         <Section eyebrow="この団体について" title="ABOUT">
@@ -269,21 +239,9 @@ export default async function CirclePage(props: PageProps<"/c/[id]">) {
           </div>
         </Section>
 
-        <Section eyebrow="次の新歓" title="WELCOME">
-          <div style={aboutCard}>
+        <Section eyebrow="いま入れるか" title="JOIN">
+          <div style={{ marginTop: 16 }}>
             <div style={badgeStyle}>{recruiting}</div>
-            <div style={num(22, hasDate ? INK : INK_MID)}>{date ?? "次の新歓は未定"}</div>
-            <div
-              style={{
-                fontSize: 14,
-                lineHeight: 1.8,
-                letterSpacing: "0.02em",
-                color: INK,
-                textWrap: "pretty",
-              }}
-            >
-              {legacy.next_recruit?.what ?? "決まりしだい、このページに載せます。"}
-            </div>
           </div>
         </Section>
 

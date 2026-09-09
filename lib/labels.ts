@@ -28,19 +28,6 @@ export function multiText(c: Circle): string {
   return c.multi_club ?? "未確認";
 }
 
-/**
- * 活動日カード下段（docs/ui/07-content.md §3）。
- * **こちらは条件文をそのまま出す。**一覧で畳んだ内容を確かめる場所がここしかない。
- */
-export function multiDualText(c: Circle): string {
-  return "掛け持ち " + multiText(c);
-}
-
-/** 活動場所 ・ 掛け持ち の1行 */
-export function placeDualText(c: Circle): string {
-  return (c.place || "活動場所 未確認") + " ・ " + multiDualText(c);
-}
-
 /** 参加の緩さ。null は未確認 */
 export function easeText(c: Circle): string {
   return c.ease ?? "未確認";

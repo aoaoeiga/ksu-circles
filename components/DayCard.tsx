@@ -8,14 +8,9 @@
 
 import { useSearchParams } from "next/navigation";
 import type { Circle } from "@/types/circle";
-import { CARD, EASE, EYEBROW, INK, INK_MID, MATCH, RULE, num } from "@/lib/design";
-import { DAY_LABELS, timesLabel } from "@/lib/gender";
-import { placeDualText } from "@/lib/labels";
-
-// TODO(B-4): 活動時間の表示を削除するまで、旧生成データをここでだけ読む。
-type LegacyCircle = Circle & {
-  active_times?: Record<string, [string, string]>;
-};
+import { CARD, EASE, EYEBROW, INK, INK_MID, MATCH, RULE } from "@/lib/design";
+import { DAY_LABELS } from "@/lib/gender";
+import { easeText, multiText, seniorCallText } from "@/lib/labels";
 
 const big = (color: string) => ({
   fontFamily: "'Zen Kaku Gothic New',sans-serif",
@@ -47,7 +42,13 @@ export default function DayCard({ circle }: { circle: Circle }) {
 
 function Card({ circle, matched }: { circle: Circle; matched: number[] }) {
   const days = [...circle.active_days].sort((a, b) => a - b);
-  const time = timesLabel(circle.active_days, (circle as LegacyCircle).active_times);
+  const rows = [
+    ["活動頻度", circle.frequency ?? "未確認"],
+    ["活動場所", circle.place ?? "未確認"],
+    ["掛け持ちの状況", multiText(circle)],
+    ["参加の緩さ", easeText(circle)],
+    ["先輩の呼び方", seniorCallText(circle)],
+  ];
 
   return (
     <div style={{ ...CARD, marginTop: 20 }}>
@@ -67,14 +68,12 @@ function Card({ circle, matched }: { circle: Circle; matched: number[] }) {
         )}
       </div>
 
-      <div style={{ ...num(16, time ? INK : INK_MID), marginTop: 8 }}>
-        {time ?? "時間 未確認"}
-      </div>
-
       <div style={{ height: 1, background: RULE, margin: "16px 0 0" }} />
-      <div style={{ fontSize: 13, color: INK_MID, marginTop: 14, lineHeight: 1.7 }}>
-        {placeDualText(circle)}
-      </div>
+      {rows.map(([label, value]) => (
+        <div key={label} style={{ fontSize: 13, color: INK_MID, marginTop: 14, lineHeight: 1.7 }}>
+          {label} {value}
+        </div>
+      ))}
     </div>
   );
 }

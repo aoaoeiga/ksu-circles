@@ -40,25 +40,3 @@ export function daysLabel(days: number[] | null | undefined): string | null {
   if (!days || days.length === 0) return null;
   return [...days].sort((a, b) => a - b).map((d) => DAY_LABELS[d]).join("・");
 }
-
-/** "18:00–20:00" / 曜日で違えば "月 18:00–20:00 ／ 木 19:00–21:00"。未確認は null */
-export function timesLabel(
-  days: number[] | null | undefined,
-  times: Record<string, [string, string]> | null | undefined
-): string | null {
-  if (!days || days.length === 0 || !times) return null;
-  const sorted = [...days].sort((a, b) => a - b);
-  const entries = sorted.map((d) => times[String(d)]).filter(Boolean);
-  if (entries.length === 0) return null;
-
-  const allSame = entries.every(
-    (t) => t[0] === entries[0][0] && t[1] === entries[0][1]
-  );
-  if (allSame && entries.length === sorted.length) {
-    return `${entries[0][0]}–${entries[0][1]}`;
-  }
-  return sorted
-    .filter((d) => times[String(d)])
-    .map((d) => `${DAY_LABELS[d]} ${times[String(d)][0]}–${times[String(d)][1]}`)
-    .join(" ／ ");
-}

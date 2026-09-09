@@ -183,10 +183,12 @@ export const SECTION_TITLE: CSSProperties = {
 };
 
 /**
- * 写真のパス。sync が /public/photos に幅1200と @600 を出している。
- * 一覧のサムネは @600、ヒーローは 1200（docs/12-deploy-spec.md §4）。
+ * 写真のパス。photos は幅1200と @600、icon は幅400の1枚だけを置く。
+ * 一覧のサムネは photos のみ @600 を使う（docs/10-sync-spec.md §5-1）。
  */
 export function photoSrc(filename: string, size: "full" | "thumb" = "full"): string {
-  if (size === "thumb") return "/photos/" + filename.replace(/\.webp$/, "@600.webp");
+  if (size === "thumb" && !/-icon\.webp$/.test(filename)) {
+    return "/photos/" + filename.replace(/\.webp$/, "@600.webp");
+  }
   return "/photos/" + filename;
 }

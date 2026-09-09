@@ -12,9 +12,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Circle } from "@/types/circle";
-
-// TODO(B-4): 掛け持ちフィルターを削除するまでの旧表示用キャスト。
-type LegacyCircle = Circle & { multi_club_ok?: string | null };
 import {
   BG,
   BIG_BTN,
@@ -50,7 +47,6 @@ export type Filters = {
   genres: string[];
   fee: FeeChoice;
   beginner: boolean;
-  multi: boolean;
 };
 
 export const EMPTY_FILTERS: Filters = {
@@ -59,7 +55,6 @@ export const EMPTY_FILTERS: Filters = {
   genres: [],
   fee: FEE_ANY,
   beginner: false,
-  multi: false,
 };
 
 /** 移植元の COVER_ROWS。表紙タイルの行の組み方 */
@@ -87,11 +82,6 @@ function passes(o: Circle, f: Filters): boolean {
     if (f.fee === "10,000円〜" && o.annual_fee <= 10000) return false;
   }
   if (f.beginner && !o.beginner_count) return false;
-  // 掛け持ち可の絞り込み。条件つき（条件文が入っている）は可として通すが、
-  // **未確認（null）は通さない。**2つ目のサークルを探している人が見る絞り込みなので、
-  // 聞けていない団体を可の側に混ぜると「行ってみたら禁止だった」が起きる（CLAUDE.md §3）
-  const multiClubOk = (o as LegacyCircle).multi_club_ok;
-  if (f.multi && (multiClubOk === null || multiClubOk === "できない")) return false;
   return true;
 }
 
@@ -103,7 +93,6 @@ export function filtersToQuery(f: Filters): string {
   if (f.genres.length) p.set("genres", f.genres.join(","));
   if (f.fee !== FEE_ANY) p.set("fee", f.fee);
   if (f.beginner) p.set("beginner", "1");
-  if (f.multi) p.set("multi", "1");
   const s = p.toString();
   return s ? "?" + s : "";
 }
@@ -156,16 +145,6 @@ export default function HomeScreen({
     () => circles.filter((c) => passes(c, f)).length,
     [circles, f]
   );
-
-  // 掛け持ちの絞り込みだけで落ちた「未確認」の件数。
-  // 除外したことが見えないと、その団体が存在しないように見えてしまうので数を出す。
-  const hiddenByMulti = useMemo(() => {
-    if (!f.multi) return 0;
-    const withoutMulti = { ...f, multi: false };
-    return circles.filter(
-      (c) => passes(c, withoutMulti) && (c as LegacyCircle).multi_club_ok === null
-    ).length;
-  }, [circles, f]);
 
   // --- 絞り込みの反映（移植元の measure / flip / applyFilters） -------------
   const measure = useCallback(() => {
@@ -284,8 +263,7 @@ export default function HomeScreen({
     f.cats.length +
     f.genres.length +
     (f.fee !== FEE_ANY ? 1 : 0) +
-    (f.beginner ? 1 : 0) +
-    (f.multi ? 1 : 0);
+    (f.beginner ? 1 : 0);
 
   const cellsFor = (o: Circle) =>
     DAY_ORDER.map((dayIdx, i) => {
@@ -450,12 +428,6 @@ export default function HomeScreen({
           <div style={num(14, INK_MID)}>{filteredCount}件</div>
         </div>
 
-        {hiddenByMulti > 0 && (
-          <div style={{ fontSize: 12, color: INK_MID, lineHeight: 1.8, paddingBottom: 16 }}>
-            掛け持ちが未確認の{hiddenByMulti}団体は表示していません。
-          </div>
-        )}
-
         {filteredCount === 0 && (
           <div style={{ padding: "56px 8px", textAlign: "center" }}>
             <div
@@ -555,7 +527,19 @@ export default function HomeScreen({
                     >
                       {membersText(o)}
                     </div>
-                    <div style={{ fontSize: 13, color: INK }}>{multiText(o)}</div>
+                    <div
+                      style={{
+                        minWidth: 0,
+                        maxWidth: "100%",
+                        fontSize: 13,
+                        color: INK,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {multiText(o)}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -736,22 +720,6 @@ export default function HomeScreen({
                   <div style={{ fontSize: 14, color: INK }}>初心者がいる団体だけ</div>
                   <div style={switchTrack(f.beginner)}>
                     <div style={switchKnob(f.beginner)} />
-                  </div>
-                </div>
-                <div
-                  onClick={() => applyFilters({ multi: !f.multi })}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    height: 54,
-                    borderBottom: "1px solid " + RULE,
-                    cursor: "pointer",
-                  }}
-                >
-                  <div style={{ fontSize: 14, color: INK }}>掛け持ちできる団体だけ</div>
-                  <div style={switchTrack(f.multi)}>
-                    <div style={switchKnob(f.multi)} />
                   </div>
                 </div>
               </div>
