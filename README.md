@@ -17,12 +17,12 @@
 | `docs/01-requirements.md` | 要件定義。判断に迷ったらここに戻る |
 | `docs/12-deploy-spec.md` | 公開までの構成 |
 | `docs/10-sync-spec.md` | シート→JSONの同期と、配置済み写真の走査仕様 |
-| `docs/ui/` | 旧UIの設計記録。現行UIの正は `CLAUDE.md` と実装 |
+| `docs/ui/` | UIの仕様書（Claude Design 用。**実装済みの根拠**） |
 | `docs/ops/` | Googleフォームの設問と生成スクリプト |
 | `data/circles.sample.json` | ダミー8団体。実在団体名は使っていない |
 | `types/circle.ts` | 掲載データの型 |
 | `lib/gender.ts` | 男女比の丸め・年会費・未確認表示の共通関数 |
-| `design/` | 旧UIの移植元資料。ビルド対象外、書き換えない |
+| `design/` | Claude Design の書き出し（**取り込み済み**）。素のHTMLではないので STEP 2 で変換する |
 | `docs/13-schema-mapping.md` | Design のダミーと本番データの形の違い。移植時に必読 |
 
 ## 運用
