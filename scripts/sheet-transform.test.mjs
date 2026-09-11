@@ -51,7 +51,7 @@ test("preview用では確認中を含め、新しいCircle型へ完全変換す�
     description: "架空の紹介文1行目\n架空の紹介文2行目\n架空の紹介文3行目",
     leader_comment: { text: "一緒に楽しみましょう。", role: "代表（3年）" },
     recruiting: "いつでも入れる",
-    surveyed_at: "2026-09",
+    surveyed_at: "2026-09-02",
     sns: {
       instagram: "https://example.test/instagram",
       x: "https://example.test/x",
@@ -70,6 +70,21 @@ test("preview用では確認中を含め、新しいCircle型へ完全変換す�
       "senior_call", "multi_club", "description", "leader_comment", "recruiting",
       "surveyed_at", "sns", "icon", "photos", "tile_size"
     ]
+  );
+});
+
+test("取材日のGoogle Sheetsシリアル値を1899-12-30起点で解釈する", () => {
+  const input = structuredClone(fixture);
+  const surveyedAt = input.掲載データ[0].indexOf("取材日");
+  input.掲載データ[1][surveyedAt] = 46264;
+
+  const result = transformSheets(input, { includeUnconfirmed: true, now, photos });
+  assert.equal(result.circles[0].surveyed_at, "2026-08-30");
+  assert.equal(
+    result.warnings.some(
+      (warning) => warning.id === "c901" && warning.message.startsWith("取材日が読めない")
+    ),
+    false
   );
 });
 

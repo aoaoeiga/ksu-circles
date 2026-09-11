@@ -43,11 +43,13 @@ export function divisionText(c: Circle): string {
   return c.division + " ・ " + c.category;
 }
 
-/** "2026-09" → "2026年9月 取材"（docs/ui/07-content.md §8） */
+/** "2026-09-02" → "2026年9月2日 取材"。旧形式の "2026-09" も読める */
 export function surveyedText(surveyedAt: string): string {
-  const m = /^(\d{4})-(\d{2})$/.exec(surveyedAt);
-  if (!m) return surveyedAt + " 取材";
-  return `${m[1]}年${Number(m[2])}月 取材`;
+  const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(surveyedAt);
+  if (day) return `${day[1]}年${Number(day[2])}月${Number(day[3])}日 取材`;
+  const month = /^(\d{4})-(\d{2})$/.exec(surveyedAt);
+  if (month) return `${month[1]}年${Number(month[2])}月 取材`;
+  return surveyedAt ? `${surveyedAt} 取材` : "取材日 未確認";
 }
 
 /**

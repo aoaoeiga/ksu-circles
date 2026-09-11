@@ -53,7 +53,7 @@ export type Circle = {
 
   recruiting: Recruiting | null;     // 「いま入れるか」のバッジ
 
-  surveyed_at: string;               // "2026-09"
+  surveyed_at: string;               // "2026-09-02"。旧データの "2026-09" も表示側で許容
   sns: { instagram: string | null; x: string | null; website: string | null };
 
   /** /public/photos 配下のファイル名。一覧タイルと OGP 用。null は写真なし */
