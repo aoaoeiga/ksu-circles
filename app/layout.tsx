@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { BG } from "@/lib/design";
 import { ALLOW_INDEXING } from "@/lib/seo";
+import RouteMotion from "@/components/RouteMotion";
 
 const deploymentHost = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
 
@@ -67,7 +68,7 @@ export default function RootLayout({
               position: "relative",
             }}
           >
-            {children}
+            <RouteMotion>{children}</RouteMotion>
           </div>
         </div>
       </body>
