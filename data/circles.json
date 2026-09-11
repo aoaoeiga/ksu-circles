@@ -1,5 +1,5 @@
 {
-  "_note": "npm run sync が生成した中間生成物。原本はスプレッドシート。手で編集しない（CLAUDE.md §1）。photos は public/photos の実ファイルを走査した結果。",
+  "_note": "npm run sync が生成した中間生成物。原本は掲載データ＋団体マスタ。手で編集しない（CLAUDE.md §1）。photos / icon は public/photos の実ファイルを走査した結果。",
   "circles": [
     {
       "id": "c054",
@@ -14,37 +14,34 @@
         2,
         3
       ],
-      "active_times": {},
-      "frequency_per_week": 3,
-      "hours_per_session": null,
+      "days_undecided": false,
+      "frequency": "週３回",
       "place": "鴨川　たけびしスタジアム　トレーニングルーム",
       "annual_fee": 0,
-      "extra_cost_note": "Tシャツ ¥4,230 ／ ユニフォーム代 ／ 競技場利用 ¥310",
       "member_count": 26,
       "beginner_count": 10,
       "first_year_count": null,
-      "gender": null,
-      "multi_club_ok": "少ない　一筋多め",
+      "male_ratio": null,
+      "ease": null,
+      "senior_call": null,
+      "multi_club": null,
       "description": "週3回、鴨川とたけびしスタジアムで練習しています。活動する曜日は\n毎学期メンバーの時間割に合わせて決め直しているので、学期ごとに変わります。\n\n26人のうち10人が大学から陸上を始めたメンバーです。競技経験のある人と\nそうでない人が同じ場で練習しています。\n\n年会費はありません。かかるのはチームTシャツ4,230円と、\n競技場の利用料310円だけです。【要確認：ユニフォーム代の金額】",
       "leader_comment": {
         "text": "陸上やってた人も、健康志向の人も大歓迎！一緒に楽しく走りませんか？",
         "role": "代表"
       },
       "recruiting": "いつでも入れる",
-      "next_recruit": null,
-      "surveyed_at": "2026-08",
+      "surveyed_at": "",
       "sns": {
         "instagram": "https://www.instagram.com/yutorun0419/?hl=ja",
         "x": null,
         "website": null
       },
+      "icon": null,
       "photos": [
         "c054-1.webp",
         "c054-2.webp",
-        "c054-3.webp",
-        "c054-4.webp",
-        "c054-5.webp",
-        "c054-6.webp"
+        "c054-3.webp"
       ],
       "tile_size": "L"
     },
@@ -57,36 +54,34 @@
       "genre": "その他",
       "one_liner": "あなたの「稼ぐ」を、 現実に。",
       "active_days": [],
-      "active_times": {},
-      "frequency_per_week": null,
-      "hours_per_session": null,
+      "days_undecided": true,
+      "frequency": "月１回",
       "place": "不定",
       "annual_fee": 3000,
-      "extra_cost_note": "なし",
       "member_count": 33,
       "beginner_count": 25,
       "first_year_count": null,
-      "gender": null,
-      "multi_club_ok": "できる",
+      "male_ratio": null,
+      "ease": null,
+      "senior_call": null,
+      "multi_club": null,
       "description": "アイデアを形にして、実際に売るところまでやる団体です。\n月1回の集まりのほか、プロジェクトごとに動く時間があります。【要確認：普段の活動の進め方】\n\n33人のうち25人が、ビジネスの知識がない状態から始めています。\n学部・学年は問いません。\n\n年会費は3,000円です。このほかに合宿費がかかります。【要確認：合宿費の金額と回数】",
       "leader_comment": {
         "text": "知識を「稼ぐ力」へ。\n実践的な学びと挑戦の場を提供します！",
         "role": "代表"
       },
       "recruiting": "いつでも入れる",
-      "next_recruit": null,
-      "surveyed_at": "2026-08",
+      "surveyed_at": "",
       "sns": {
         "instagram": "https://www.instagram.com/kyosan_kigyobu/?hl=ja",
         "x": null,
         "website": null
       },
+      "icon": null,
       "photos": [
         "c056-1.webp",
         "c056-2.webp",
-        "c056-3.webp",
-        "c056-4.webp",
-        "c056-5.webp"
+        "c056-3.webp"
       ],
       "tile_size": "M"
     },
@@ -104,50 +99,30 @@
         2,
         4
       ],
-      "active_times": {
-        "0": [
-          "12:00",
-          "16:00"
-        ],
-        "1": [
-          "12:00",
-          "16:00"
-        ],
-        "2": [
-          "12:00",
-          "16:00"
-        ],
-        "4": [
-          "12:00",
-          "16:00"
-        ]
-      },
-      "frequency_per_week": 4,
-      "hours_per_session": null,
+      "days_undecided": false,
+      "frequency": "週4回",
       "place": "4号館3階イノベーションラウンジ",
       "annual_fee": 0,
-      "extra_cost_note": "なし",
       "member_count": 6,
       "beginner_count": null,
       "first_year_count": null,
-      "gender": {
-        "male": 3,
-        "female": 3
-      },
-      "multi_club_ok": "できる",
+      "male_ratio": 50,
+      "ease": null,
+      "senior_call": null,
+      "multi_club": null,
       "description": "4号館3階のイノベーションラウンジで、学生だけでカフェを運営しています。\n営業は月・火・水・金の12時から16時まで。\n\nコーヒーの抽出だけでなく、仕入れ、メニュー設計、原価計算、接客まで\nメンバーで分担しています。【要確認：実際の分担】\n\n現在6人。年会費はかかりません。\nいまは新規メンバーの募集をしていません。",
       "leader_comment": {
         "text": "ぜひ美味しいコーヒーを飲みにきてください！",
         "role": "代表"
       },
       "recruiting": "募集していない",
-      "next_recruit": null,
-      "surveyed_at": "2026-08",
+      "surveyed_at": "",
       "sns": {
         "instagram": "https://www.instagram.com/cafe_brend/?hl=ja",
         "x": null,
         "website": null
       },
+      "icon": null,
       "photos": [
         "c058-1.webp",
         "c058-2.webp",
