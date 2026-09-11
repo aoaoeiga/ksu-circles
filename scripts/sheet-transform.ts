@@ -125,6 +125,19 @@ function toISODate(value: SheetCell | undefined): { date: string | null; ambiguo
   const normalized = String(value ?? "").normalize("NFKC").trim();
   if (!normalized) return { date: null, ambiguous: false };
 
+  // Google Sheets API は日付セルをシリアル値で返す場合がある。
+  // Sheets / Excel と同じく 1899-12-30 を 0 とし、時刻部分は切り捨てる。
+  if (/^\d+(?:\.\d+)?$/.test(normalized)) {
+    const serial = Number(normalized);
+    if (Number.isFinite(serial) && serial >= 0) {
+      const epoch = Date.UTC(1899, 11, 30);
+      const date = new Date(epoch + Math.floor(serial) * 86_400_000);
+      if (!Number.isNaN(date.getTime())) {
+        return { date: date.toISOString().slice(0, 10), ambiguous: false };
+      }
+    }
+  }
+
   const ymd = /^(\d{4})[/\-年](\d{1,2})[/\-月](\d{1,2})/.exec(normalized);
   if (ymd) {
     const [, year, month, day] = ymd;
@@ -310,7 +323,7 @@ export function transformSheets(input: SheetInput, options: TransformOptions = {
       : null;
 
     const surveyed = toISODate(get("surveyedAt"));
-    const surveyedAt = surveyed.date?.slice(0, 7) ?? "";
+    const surveyedAt = surveyed.date ?? "";
     if (!surveyed.date) warn(`取材日が読めない（"${text(get("surveyedAt")) ?? ""}"）`);
     if (surveyed.ambiguous) warn(`取材日が月日どちらとも取れる形（"${String(get("surveyedAt"))}" → ${surveyed.date} と解釈）`);
 

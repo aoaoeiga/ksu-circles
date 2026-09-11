@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // sync が 3:2・WebP・幅1200/600 に変換済みなので、next/image で二重に処理しない。
+  // public/photos には3:2・WebP・幅1200/600の変換済み画像を置くので、二重に処理しない。
   // 参照側では width / height を必ず指定する（docs/12-deploy-spec.md §4）。
   images: {
     unoptimized: true,

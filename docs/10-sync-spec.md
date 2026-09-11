@@ -98,7 +98,7 @@ gcloud auth application-default set-quota-project ksu-circles
 | 掲載データ | `紹介文` | `description` | 改行を保持 |
 | 掲載データ | `代表からの一言` / `役職` | `leader_comment` | 本文が空なら `null`。役職は `代表（3年）` の形にし、個人名の可能性があれば置換して警告 |
 | 掲載データ | `いま入れるか` | `recruiting` | 既知値はそのまま。空は `null` |
-| 掲載データ | `取材日` | `surveyed_at` | `YYYY-MM`へ |
+| 掲載データ | `取材日` | `surveyed_at` | `YYYY-MM-DD`へ。数値は1899-12-30起点のシリアル値として解釈 |
 | 掲載データ | `Instagram` / `X` / `公式サイト` | `sns` | URL形式でなければ `null`＋警告 |
 | 掲載データ | `tile_size` | `tile_size` | `S` / `M` / `L`。空・未知値は `M` |
 
