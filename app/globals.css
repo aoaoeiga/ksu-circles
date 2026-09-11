@@ -101,6 +101,141 @@ input::placeholder {
   color: #9a9ca2;
 }
 
+/* 一覧の大小タイル。幅の違いだけでなく行も同じ単位にして dense で隙間を埋める。 */
+.circle-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-flow: dense;
+  grid-auto-rows: calc((100vw - 50px) / 2);
+  gap: 10px;
+}
+
+.circle-tile {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.circle-tile:hover {
+  color: #ffffff;
+}
+
+.circle-tile--square {
+  grid-column: span 1;
+  grid-row: span 1;
+}
+
+.circle-tile--wide {
+  grid-column: span 2;
+  grid-row: span 1;
+}
+
+.circle-tile--large {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
+.circle-tile__media {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.circle-tile__media > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  filter: brightness(0.9) saturate(0.96);
+}
+
+.circle-tile__fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.circle-avatar {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 999px;
+  color: #ffffff;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.circle-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.circle-tile__gradient {
+  position: absolute;
+  inset: 35% 0 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0));
+  pointer-events: none;
+}
+
+.circle-tile__copy {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  padding: 14px;
+  color: #ffffff;
+  pointer-events: none;
+}
+
+.circle-tile__name {
+  font-family: "Zen Kaku Gothic New", sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.04em;
+  text-wrap: pretty;
+}
+
+.circle-tile--large .circle-tile__name {
+  font-size: 24px;
+}
+
+.circle-tile__tagline {
+  display: -webkit-box;
+  margin-top: 8px;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.6;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (min-width: 768px) {
+  .circle-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-rows: calc((min(100vw, 960px) - 70px) / 4);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

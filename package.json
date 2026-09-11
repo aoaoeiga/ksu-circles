@@ -11,6 +11,7 @@
     "sync": "node --env-file=.env scripts/sync.ts"
   },
   "dependencies": {
+    "framer-motion": "^13.2.0",
     "google-auth-library": "^11.0.2",
     "next": "16.3.3",
     "react": "19.2.0",
