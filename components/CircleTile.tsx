@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
 import type { Circle } from "@/types/circle";
-import CircleAvatar from "@/components/CircleAvatar";
+import InitialTile from "@/components/InitialTile";
 import { genreColor, photoSrc } from "@/lib/design";
 import type { TileShape } from "@/lib/tile-layout";
 
@@ -17,11 +16,11 @@ export default function CircleTile({ circle, shape }: { circle: Circle; shape: T
   const hasImage = file !== null;
 
   return (
-    <motion.div
-      layoutId={`circle-image-${circle.id}`}
+    // data-shared-image は詳細ヒーローとの行き来で位置を測るための印（lib/flip.ts）
+    <div
+      data-shared-image={circle.id}
       className="circle-tile__media"
       style={{ background: genreColor(circle.genre) }}
-      transition={{ type: "spring", stiffness: 240, damping: 28 }}
     >
       {file ? (
         // 変換済みWebPをそのまま使う。読み込み失敗時は頭文字へ戻す。
@@ -35,9 +34,7 @@ export default function CircleTile({ circle, shape }: { circle: Circle; shape: T
           onError={() => setSourceIndex((index) => index + 1)}
         />
       ) : (
-        <div className="circle-tile__fallback">
-          <CircleAvatar circle={{ ...circle, icon: null }} size={shape === "large" ? 88 : 60} />
-        </div>
+        <InitialTile circle={circle} />
       )}
 
       <div className="circle-tile__gradient" />
@@ -46,6 +43,6 @@ export default function CircleTile({ circle, shape }: { circle: Circle; shape: T
         {shape === "large" && <div className="circle-tile__tagline">{circle.one_liner}</div>}
       </div>
       {!hasImage && <span className="sr-only">画像なし</span>}
-    </motion.div>
+    </div>
   );
 }

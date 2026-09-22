@@ -1,26 +1,45 @@
 // 掲載データ＋団体マスタ → data/circles.json
-// 変換規則は scripts/sheet-transform.ts、写真の走査は scripts/photo-index.ts に分離し、
-// このファイルは Google API とファイルI/Oだけを担う。
+// 変換規則は scripts/sheet-transform.ts に分離し、このファイルは Google API と
+// ファイルI/Oだけを担う。
 //
-// sync は画像を変換しない（docs/10-sync-spec.md §7）。public/photos を走査して数えるだけ。
+// 写真の置き場所は2系統ある。**どちらも消さずに、新しいほうを優先して使う。**
+//
+//   public/circles/<団体ID>/   シートの「写真_元」（Drive URL）から scripts/photos.ts が作る。いま正
+//   public/photos/             以前に手で置いたもの。シートに Drive URL が無い団体はこちらを使い続ける
+//
+// 後者を切ると、まだシートに写真を入れていない団体（c054 など）が
+// サイトから消える。**古いほうは残して保険にする。**
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { createInterface } from "node:readline/promises";
 import { GoogleAuth, Impersonated, JWT, type AuthClient } from "google-auth-library";
 import type { Circle, CircleFile } from "../types/circle.ts";
 import {
+  readPhotoSources,
   transformSheets,
   type SheetInput,
   type SheetValues,
   type SyncWarning,
 } from "./sheet-transform.ts";
 import { scanPhotos, type PhotoIndex } from "./photo-index.ts";
+import { parseDriveCell, syncCirclePhotos, type CirclePhotos } from "./photos.ts";
 
 const OUT_JSON = "data/circles.json";
 const OUT_REPORT = "data/report.md";
+const PUBLIC_DIR = "public";
+/** 以前に手で置いた写真。シートに Drive URL が無い団体はここを使う */
 const PHOTO_DIR = "public/photos";
+/** scripts/photos.ts が Drive から作る写真 */
+const CIRCLE_DIR = "public/circles";
+/** ヒーローに出す枚数の上限。フォームが5枚まで受けるので5枚（docs/ui/08-carousel.md の推奨3〜5枚） */
+const MAX_PHOTOS = 5;
 const MASTER_SHEET_NAME = "団体マスタ";
-const SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"];
+const SCOPES = [
+  "https://www.googleapis.com/auth/spreadsheets.readonly",
+  // 「写真_元」の Drive ファイルを落とすため。シート読み取りと同じ認証を使い回す
+  "https://www.googleapis.com/auth/drive.readonly",
+];
 
 const args = process.argv.slice(2);
 const hasFlag = (name: string) => args.includes(`--${name}`);
@@ -116,13 +135,121 @@ async function fetchSheetNames(auth: AuthClient, sheetId: string): Promise<strin
     .filter(Boolean);
 }
 
+type Resolved = { icon: string | null; photos: string[]; warnings: string[] };
+
+/** 写真の取得結果のまとめ。レポートに出す */
+type PhotoSummary = {
+  /** 「写真_元」に Drive URL が入っていた団体数と、その合計件数 */
+  sheetCircles: number;
+  sheetFiles: number;
+  /** アイコン写真_元 が入っていた団体数 */
+  sheetIcons: number;
+  /** 実際に Drive から取得できた団体数 */
+  fetched: number;
+  /** 取得に失敗した団体と理由 */
+  failures: { id: string; message: string }[];
+  /** ディスクにある古いほうの写真を使った団体 */
+  fromLegacy: string[];
+};
+
+/** public/circles/<団体ID>/ に置いてあるものを読む（Drive を叩かない） */
+function scanCircleDir(slug: string): CirclePhotos {
+  const dir = path.join(CIRCLE_DIR, slug);
+  if (!existsSync(dir)) return { icon: null, photos: [] };
+  const names = readdirSync(dir);
+  return {
+    icon: names.includes("icon.webp") ? `/circles/${slug}/icon.webp` : null,
+    photos: names
+      .filter((n) => /^\d{2}\.webp$/.test(n))
+      .sort()
+      .map((n) => `/circles/${slug}/${n}`),
+  };
+}
+
+/**
+ * 団体IDごとの写真を決める。
+ *
+ * **新しいほう（public/circles）を優先し、無ければ古いほう（public/photos）に落とす。**
+ * どちらのファイルも消さない。Drive の取得に失敗しても、ディスクにあるものは出し続ける。
+ */
+async function resolvePhotos(
+  auth: AuthClient,
+  sources: Map<string, { icon: string | null; photos: string | null }>,
+  photoIndex: PhotoIndex,
+  summary: PhotoSummary
+): Promise<Map<string, Resolved>> {
+  const resolved = new Map<string, Resolved>();
+
+  for (const [id, cell] of sources) {
+    const iconIds = parseDriveCell(cell.icon);
+    const photoIds = parseDriveCell(cell.photos);
+    if (photoIds.length > 0) {
+      summary.sheetCircles += 1;
+      summary.sheetFiles += photoIds.length;
+    }
+    if (iconIds.length > 0) summary.sheetIcons += 1;
+
+    const warnings: string[] = [];
+    let fresh: CirclePhotos;
+
+    if (DRY_RUN) {
+      // --dry-run では Drive を叩かない。ディスクにあるものだけを見る
+      fresh = scanCircleDir(id);
+    } else {
+      try {
+        fresh = await syncCirclePhotos(
+          // photos.ts の型は GoogleAuth | JWT だが、この sync は Impersonated も使う。
+          // 中で googleapis に渡すだけなので、ここで型を合わせる
+          auth as unknown as JWT,
+          id,
+          cell.icon ?? undefined,
+          cell.photos ?? undefined,
+          PUBLIC_DIR
+        );
+        if (photoIds.length > 0 || iconIds.length > 0) summary.fetched += 1;
+      } catch (error) {
+        // 落とせなくても、すでにディスクにあるものは出し続ける。
+        // ここで止めると写真がサイトから消える
+        const message = error instanceof Error ? error.message : String(error);
+        summary.failures.push({ id, message });
+        warnings.push(`Drive から写真を取れなかった（${message.split("\n")[0]}）`);
+        fresh = scanCircleDir(id);
+      }
+    }
+
+    if (photoIds.length > MAX_PHOTOS) {
+      warnings.push(
+        `「写真_元」が${photoIds.length}件。いまのヒーローは${MAX_PHOTOS}枚までなので${photoIds.length - MAX_PHOTOS}件は出さない`
+      );
+    }
+
+    // 新しいほうに何も無ければ、以前 public/photos に置いたものを使う
+    const legacy = photoIndex.byId.get(id);
+    const usesLegacyPhotos = fresh.photos.length === 0 && (legacy?.photos.length ?? 0) > 0;
+    const usesLegacyIcon = fresh.icon === null && Boolean(legacy?.icon);
+    if (usesLegacyPhotos || usesLegacyIcon) {
+      summary.fromLegacy.push(id);
+      legacy?.warnings.forEach((w) => warnings.push(w));
+    }
+
+    resolved.set(id, {
+      icon: fresh.icon ?? legacy?.icon ?? null,
+      photos: (fresh.photos.length > 0 ? fresh.photos : (legacy?.photos ?? [])).slice(0, MAX_PHOTOS),
+      warnings,
+    });
+  }
+
+  return resolved;
+}
+
 function makeReport(
   sourceRows: number,
   circles: Circle[],
   excluded: { id: string; reason: string }[],
   warnings: SyncWarning[],
   missingColumns: string[],
-  photoIndex: PhotoIndex
+  photoIndex: PhotoIndex,
+  summary: PhotoSummary
 ): string {
   const now = new Date();
   const stamp = [
@@ -150,7 +277,23 @@ function makeReport(
   const withPhoto = circles.filter((c) => c.photos.length > 0).length;
   const withIcon = circles.filter((c) => c.icon !== null).length;
   lines.push(
-    `  ${PHOTO_DIR} を走査（${photoIndex.fileCount}ファイル） / 掲載 ${used}枚（${withPhoto}団体） / アイコン ${withIcon}団体 / 写真なし ${circles.length - withPhoto}団体`
+    `  シートの「写真_元」 ${summary.sheetCircles}団体 / ${summary.sheetFiles}件` +
+      `　「アイコン写真_元」 ${summary.sheetIcons}団体`
+  );
+  lines.push(
+    DRY_RUN
+      ? "  --dry-run のため Drive からは取得していません（件数だけ数えました）"
+      : `  ${CIRCLE_DIR} に取り込み ${summary.fetched}団体 / 失敗 ${summary.failures.length}団体`
+  );
+  summary.failures.forEach((f) =>
+    lines.push(`  ${f.id.padEnd(6)}Drive 取得に失敗: ${f.message.split("\n")[0]}`)
+  );
+  lines.push(
+    `  ${PHOTO_DIR}（以前に手で置いたもの）を走査（${photoIndex.fileCount}ファイル）` +
+      (summary.fromLegacy.length > 0 ? ` / そこから出す団体 ${summary.fromLegacy.join(", ")}` : "")
+  );
+  lines.push(
+    `  掲載 ${used}枚（${withPhoto}団体） / アイコン ${withIcon}団体 / 写真なし ${circles.length - withPhoto}団体（頭文字タイル）`
   );
   // 公開対象にないIDの写真が置いてある（消し忘れ）
   const published = new Set(circles.map((c) => c.id));
@@ -180,10 +323,21 @@ async function main(): Promise<void> {
   if (input.団体マスタ.length === 0) throw new Error(`シート "${MASTER_SHEET_NAME}" が空です`);
 
   const photoIndex = scanPhotos(PHOTO_DIR);
+  const summary: PhotoSummary = {
+    sheetCircles: 0,
+    sheetFiles: 0,
+    sheetIcons: 0,
+    fetched: 0,
+    failures: [],
+    fromLegacy: [],
+  };
+  const sources = readPhotoSources(input.掲載データ);
+  const photos = await resolvePhotos(auth, sources, photoIndex, summary);
+
   const result = transformSheets(input, {
     includeUnconfirmed: process.env.INCLUDE_UNCONFIRMED === "1",
     only: ONLY,
-    photos: (id) => photoIndex.byId.get(id),
+    photos: (id) => photos.get(id),
   });
   const report = makeReport(
     result.sourceRows,
@@ -191,7 +345,8 @@ async function main(): Promise<void> {
     result.excluded,
     result.warnings,
     result.missingColumns,
-    photoIndex
+    photoIndex,
+    summary
   );
   writeFileSync(OUT_REPORT, report, "utf8");
   console.log(report);
@@ -199,7 +354,7 @@ async function main(): Promise<void> {
 
   const payload: CircleFile = {
     _note:
-      "npm run sync が生成した中間生成物。原本は掲載データ＋団体マスタ。手で編集しない（CLAUDE.md §1）。photos / icon は public/photos の実ファイルを走査した結果。",
+      "npm run sync が生成した中間生成物。原本は掲載データ＋団体マスタ。手で編集しない（CLAUDE.md §1）。photos / icon は public/circles（シートの写真_元から取得）と public/photos（以前に手で置いたもの）の実ファイル。",
     circles: result.circles,
   };
   const next = JSON.stringify(payload, null, 2) + "\n";

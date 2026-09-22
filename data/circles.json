@@ -1,5 +1,5 @@
 {
-  "_note": "npm run sync が生成した中間生成物。原本は掲載データ＋団体マスタ。手で編集しない（CLAUDE.md §1）。photos / icon は public/photos の実ファイルを走査した結果。",
+  "_note": "npm run sync が生成した中間生成物。原本は掲載データ＋団体マスタ。手で編集しない（CLAUDE.md §1）。photos / icon は public/circles（シートの写真_元から取得）と public/photos（以前に手で置いたもの）の実ファイル。",
   "circles": [
     {
       "id": "c054",
@@ -7,7 +7,7 @@
       "name": "陸上競技同好会　ゆとらん",
       "division": "運動系",
       "category": "届出団体",
-      "genre": "その他",
+      "genre": "運動",
       "one_liner": "ゆとりのある「RUN」をしよう　ガチすぎず　ゆるすぎず　ちょうどいい",
       "active_days": [
         0,
@@ -41,7 +41,9 @@
       "photos": [
         "c054-1.webp",
         "c054-2.webp",
-        "c054-3.webp"
+        "c054-3.webp",
+        "c054-4.webp",
+        "c054-5.webp"
       ],
       "tile_size": "L"
     },
@@ -81,7 +83,9 @@
       "photos": [
         "c056-1.webp",
         "c056-2.webp",
-        "c056-3.webp"
+        "c056-3.webp",
+        "c056-4.webp",
+        "c056-5.webp"
       ],
       "tile_size": "M"
     },

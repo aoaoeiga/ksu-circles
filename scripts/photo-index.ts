@@ -5,12 +5,12 @@
 //
 // 期待するファイル名:
 //   {id}-icon.webp        一覧タイルと OGP 用。1:1、幅400。@600 は無い
-//   {id}-{n}.webp         ヒーロー用。3:2、幅1200。n は 1 から詰める。最大3枚
+//   {id}-{n}.webp         ヒーロー用。3:2、幅1200。n は 1 から詰める。最大5枚
 //   {id}-{n}@600.webp     同じ写真の幅600。photos 配列には入れない（lib/design.ts の photoSrc() が組み立てる）
 
 import { existsSync, readdirSync } from "node:fs";
 
-export const MAX_PHOTOS = 3;
+export const MAX_PHOTOS = 5;
 
 export type PhotoEntry = {
   icon: string | null;

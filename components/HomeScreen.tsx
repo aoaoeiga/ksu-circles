@@ -34,6 +34,7 @@ import {
 } from "@/lib/design";
 import { DAY_LABELS } from "@/lib/gender";
 import CircleTile from "@/components/CircleTile";
+import { rememberTile } from "@/lib/flip";
 import { usePrefersReducedMotion } from "@/components/usePrefersReducedMotion";
 import { tileShapeForId } from "@/lib/tile-layout";
 
@@ -52,6 +53,11 @@ export const EMPTY_FILTERS: Filters = {
   fee: FEE_ANY,
   beginner: false,
 };
+
+// 一度出したタイルは覚えておく。詳細から戻ったときに一覧ぜんぶが入り直すと、
+// 縮んでくるヒーローの着地点が動いてしまう（lib/flip.ts）。
+// 絞り込みで新しく現れたタイルは、これまでどおり下から入る。
+const revealed = new Set<string>();
 
 /** 移植元の passes(). 絞り込みの判定 */
 function passes(o: Circle, f: Filters): boolean {
@@ -195,6 +201,8 @@ export default function HomeScreen({
           el.style.opacity = "1";
           el.style.transform = "translateY(0)";
           el.setAttribute("data-shown", "1");
+          const id = el.getAttribute("data-org");
+          if (id) revealed.add(id);
           io.unobserve(el);
         });
       },
@@ -205,6 +213,12 @@ export default function HomeScreen({
       .forEach((n) => {
         const el = n as HTMLElement;
         el.setAttribute("data-observed", "1");
+        const id = el.getAttribute("data-org");
+        if (id && revealed.has(id)) {
+          // すでに見せたタイル。戻ってきただけなので、出ている形のまま置く
+          el.setAttribute("data-shown", "1");
+          return;
+        }
         el.style.opacity = "0";
         el.style.transform = "translateY(24px)";
         io.observe(el);
@@ -359,6 +373,8 @@ export default function HomeScreen({
               <Link
                 key={o.id}
                 href={`/c/${o.id}${filtersToQuery(f)}`}
+                // 押した瞬間のタイルの位置を控える。詳細のヒーローはここから広がる
+                onClick={(e) => rememberTile(o.id, e.currentTarget)}
                 data-org={o.id}
                 data-reveal="1"
                 className={`circle-tile circle-tile--${shape}`}

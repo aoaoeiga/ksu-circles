@@ -9,7 +9,8 @@ export type Category =
   | "学生プロジェクトチーム" | "委員会・その他";
 
 export type Genre =
-  | "球技" | "武道" | "音楽" | "文化・創作" | "ボランティア" | "その他";
+  | "球技" | "武道" | "音楽" | "文化・創作" | "ボランティア"
+  | "学術・ビジネス" | "運動" | "その他";
 
 export type Recruiting = "いつでも入れる" | "4月のみ" | "募集していない";
 
@@ -56,9 +57,14 @@ export type Circle = {
   surveyed_at: string;               // "2026-09-02"。旧データの "2026-09" も表示側で許容
   sns: { instagram: string | null; x: string | null; website: string | null };
 
-  /** /public/photos 配下のファイル名。一覧タイルと OGP 用。null は写真なし */
+  /**
+   * アイコン写真の場所。一覧タイルと OGP 用。null はアイコンなし（頭文字タイルになる）。
+   * "/circles/c056/icon.webp" のようなサイト内のパス。
+   * 旧来の public/photos に置いたファイルは "c056-icon.webp" のようなファイル名で入る。
+   * どちらの形でも lib/design.ts の photoSrc() を通せば URL になる。
+   */
   icon: string | null;
-  /** /public/photos 配下のファイル名。ヒーロー用、最大3枚 */
+  /** 写真の場所。ヒーロー用、最大5枚。形は icon と同じ */
   photos: string[];
   /** 一覧のタイルの大きさ。シートで指定する。既定は "M" */
   tile_size: "S" | "M" | "L";

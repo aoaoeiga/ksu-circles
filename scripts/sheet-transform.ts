@@ -15,7 +15,11 @@ export type SheetInput = {
 
 export type SyncWarning = { id: string; message: string };
 export type SyncExcluded = { id: string; reason: string };
-/** public/photos の走査結果（scripts/photo-index.ts）。sync は画像を変換しない（docs/10 §7） */
+/**
+ * 団体IDごとの写真の置き場所。scripts/sync.ts が
+ * Drive から落としたもの（public/circles/）と、手で置いたもの（public/photos/）を
+ * まとめてから渡す。ここでは受け取るだけで、取得も変換もしない。
+ */
 export type PhotoLookup = (id: string) => { icon: string | null; photos: string[]; warnings: string[] } | undefined;
 
 export type TransformResult = {
@@ -72,11 +76,16 @@ const PUBLISH_COLUMNS = {
   catchcopy: "キャッチコピー",
   tileSize: "tile_size",
   publish: "公開可否",
+  iconSource: "アイコン写真_元",
+  photoSource: "写真_元",
 } as const;
 
 const MASTER_COLUMNS = {
   id: "団体ID",
   division: "大分類",
+  // 掲載データの「ジャンル」は面談の回答から転記されるので面談済みの行しか埋まらない。
+  // 全団体分はこちらに入っているので、空のときの引き当て先にする
+  genre: "ジャンル",
 } as const;
 
 const WEEKDAYS: (keyof typeof PUBLISH_COLUMNS)[] = [
@@ -96,7 +105,17 @@ const CATEGORIES: Category[] = [
   "学生プロジェクトチーム",
   "委員会・その他",
 ];
-const GENRES: Genre[] = ["球技", "武道", "音楽", "文化・創作", "ボランティア", "その他"];
+// types/circle.ts の Genre と同じ並び。シートの「ジャンル」列の取りうる値
+const GENRES: Genre[] = [
+  "球技",
+  "武道",
+  "音楽",
+  "文化・創作",
+  "ボランティア",
+  "学術・ビジネス",
+  "運動",
+  "その他",
+];
 const RECRUITINGS: Recruiting[] = ["いつでも入れる", "4月のみ", "募集していない"];
 
 function normalizeHeader(value: SheetCell | undefined): string {
@@ -207,6 +226,29 @@ function makeReader(values: SheetValues, columns: Record<string, string>) {
   };
 }
 
+/**
+ * 「掲載データ」から写真の元（Drive URL）のセルだけを取り出す。
+ *
+ * 写真の取得は Google Drive を叩くので sync.ts の担当だが、
+ * **列名の定義は PUBLISH_COLUMNS 1か所に閉じておきたい**のでここに置く。
+ * 公開可否の判定はしない。呼ぶ側が公開対象のIDだけ使う。
+ */
+export function readPhotoSources(
+  values: SheetValues
+): Map<string, { icon: string | null; photos: string | null }> {
+  const reader = makeReader(values, PUBLISH_COLUMNS);
+  const found = new Map<string, { icon: string | null; photos: string | null }>();
+  for (const row of values.slice(1)) {
+    const id = text(reader.get(row, "id"));
+    if (!id) continue;
+    found.set(id, {
+      icon: text(reader.get(row, "iconSource")),
+      photos: text(reader.get(row, "photoSource")),
+    });
+  }
+  return found;
+}
+
 function normalizeCategory(raw: string | null, warn: (message: string) => void): Category {
   if (raw === "体育会") return "体育会所属クラブ";
   if (raw === "委員会・独立団・その他") return "委員会・その他";
@@ -244,10 +286,16 @@ export function transformSheets(input: SheetInput, options: TransformOptions = {
   const seenIds = new Set<string>();
   const now = options.now ?? new Date();
 
-  const divisions = new Map<string, string>();
+  // 団体マスタから、団体IDで引けるようにしておく
+  const fromMaster = new Map<string, { division: string; genre: string | null }>();
   for (const row of input.団体マスタ.slice(1)) {
     const id = text(master.get(row, "id"));
-    if (id) divisions.set(id, text(master.get(row, "division")) ?? "");
+    if (id) {
+      fromMaster.set(id, {
+        division: text(master.get(row, "division")) ?? "",
+        genre: text(master.get(row, "genre")),
+      });
+    }
   }
 
   for (let offset = 1; offset < input.掲載データ.length; offset++) {
@@ -292,10 +340,15 @@ export function transformSheets(input: SheetInput, options: TransformOptions = {
     }
     seenIds.add(id);
 
-    const rawDivision = divisions.get(id) ?? "";
+    const rawDivision = fromMaster.get(id)?.division ?? "";
     const division = (DIVISIONS as string[]).includes(rawDivision)
       ? (rawDivision as Division)
       : "その他";
+    // ジャンルは掲載データを優先し、空なら団体マスタから引く。
+    // どちらも空だと頭文字タイルが全部同じ灰色になるので、そのときは知らせる
+    const genreRaw = text(get("genre")) ?? fromMaster.get(id)?.genre ?? null;
+    if (!genreRaw) warn("ジャンルが空（掲載データ・団体マスタとも）。頭文字タイルは「その他」の色になる");
+
     if (!rawDivision) warn("団体マスタの大分類が空（\"その他\"を使用）");
     else if (division === "その他" && rawDivision !== "その他") {
       warn(`団体マスタの大分類が未知値（"${rawDivision}" → "その他"）`);
@@ -332,12 +385,12 @@ export function transformSheets(input: SheetInput, options: TransformOptions = {
       tileRaw === "S" || tileRaw === "L" || tileRaw === "M" ? tileRaw : "M";
     if (tileRaw !== tileSize) warn(`tile_size が S/M/L でない（"${tileRaw}" → "M"）`);
 
-    // 写真はシートから読まない。public/photos に置いてあるファイルが正（docs/10 §7）
+    // 写真の実体は sync 側が用意する。ここは受け取った結果を入れるだけ
     const found = options.photos?.(id);
     const icon = found?.icon ?? null;
     const photos = found?.photos ?? [];
     found?.warnings.forEach(warn);
-    if (!icon && photos.length === 0) warn(`写真0枚（public/photos に ${id}-1.webp も ${id}-icon.webp も無い）`);
+    if (!icon && photos.length === 0) warn("写真0枚（アイコンは頭文字タイルで出る）");
 
     const memberCount = numberOrNull(get("members"));
     const beginnerCount = numberOrNull(get("beginners"));
@@ -365,7 +418,7 @@ export function transformSheets(input: SheetInput, options: TransformOptions = {
       name,
       division,
       category: normalizeCategory(text(get("category")), warn),
-      genre: normalizeGenre(text(get("genre")), warn),
+      genre: normalizeGenre(genreRaw, warn),
       one_liner: oneLiner,
       active_days: WEEKDAYS.flatMap((key, day) => checked(get(key)) ? [day] : []),
       days_undecided: checked(get("daysUndecided")),

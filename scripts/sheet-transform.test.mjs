@@ -4,8 +4,9 @@ import test from "node:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { transformSheets } from "./sheet-transform.ts";
+import { readPhotoSources, transformSheets } from "./sheet-transform.ts";
 import { scanPhotos } from "./photo-index.ts";
+import { parseDriveCell } from "./photos.ts";
 
 const fixture = JSON.parse(
   readFileSync(new URL("./fixtures/sheet-sample.json", import.meta.url), "utf8")
@@ -88,7 +89,7 @@ test("取材日のGoogle Sheetsシリアル値を1899-12-30起点で解釈する
   );
 });
 
-test("写真はシートの列を読まず、public/photos の走査結果だけを使う", () => {
+test("transformSheets は写真の列を自分で読まず、渡された走査結果だけを使う", () => {
   const result = transformSheets(fixture, { includeUnconfirmed: true, now });
   // photos を渡さなければ、シートにURLがあっても写真なし
   assert.equal(result.circles[0].icon, null);
@@ -97,6 +98,56 @@ test("写真はシートの列を読まず、public/photos の走査結果だけ
     result.warnings.some((w) => w.id === "c901" && w.message.startsWith("写真0枚")),
     "写真0枚の警告がない"
   );
+});
+
+test("ジャンルは掲載データを優先し、空なら団体マスタから引く", () => {
+  const genreAt = fixture.掲載データ[0].indexOf("ジャンル");
+  const clone = () => JSON.parse(JSON.stringify(fixture));
+
+  // 掲載データが空 → 団体マスタの「球技」を使う
+  const fallback = clone();
+  fallback.掲載データ[1][genreAt] = "";
+  const byMaster = transformSheets(fallback, { now, photos });
+  assert.equal(byMaster.circles[0].genre, "球技");
+
+  // 掲載データに値がある → 団体マスタ（球技）より掲載データが勝つ
+  const override = clone();
+  override.掲載データ[1][genreAt] = "音楽";
+  const byPublish = transformSheets(override, { now, photos });
+  assert.equal(byPublish.circles[0].genre, "音楽");
+
+  // どちらも空 → その他に落として、そのことを警告する
+  const empty = clone();
+  empty.掲載データ[1][genreAt] = "";
+  empty.団体マスタ[1][empty.団体マスタ[0].indexOf("ジャンル")] = "";
+  const none = transformSheets(empty, { now, photos });
+  assert.equal(none.circles[0].genre, "その他");
+  assert.ok(
+    none.warnings.some((w) => w.id === "c901" && w.message.startsWith("ジャンルが空")),
+    "ジャンルが空の警告がない"
+  );
+});
+
+test("parseDriveCell: カンマ区切りのDrive URLからファイルIDを取り出す", () => {
+  const id1 = "1BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB01";
+  const id2 = "1CCCCCCCCCCCCCCCCCCCCCCCCCCCCCC02";
+  const base = "https://drive.google.com/open?id=";
+  assert.deepEqual(parseDriveCell(`${base}${id1}, ${base}${id2}`), [id1, id2]);
+  // 空セル・未入力・URLでない文字列は黙って捨てる
+  assert.deepEqual(parseDriveCell(""), []);
+  assert.deepEqual(parseDriveCell(undefined), []);
+  assert.deepEqual(parseDriveCell("あとで入れます"), []);
+  // 末尾のカンマや余分な空白が混ざっても件数が増えない
+  assert.deepEqual(parseDriveCell(`  ${base}${id1} ,  `), [id1]);
+});
+
+test("readPhotoSources: 団体IDごとに写真の元セルを引ける", () => {
+  const sources = readPhotoSources(fixture.掲載データ);
+  const c901 = sources.get("c901");
+  assert.equal(parseDriveCell(c901.icon).length, 1);
+  assert.equal(parseDriveCell(c901.photos).length, 2);
+  // 写真の元が空の団体は null（「写真枚数」は参考用なので読まない）
+  assert.deepEqual(sources.get("c902"), { icon: null, photos: null });
 });
 
 test("scanPhotos: 連番・アイコン・@600・上限を判定する", () => {
@@ -111,7 +162,9 @@ test("scanPhotos: 連番・アイコン・@600・上限を判定する", () => {
       "c903-1.webp", "c903-1@600.webp",
       "c903-2.webp", "c903-2@600.webp",
       "c903-3.webp", "c903-3@600.webp",
-      "c903-4.webp", "c903-4@600.webp",    // 4枚目は上限超え
+      "c903-4.webp", "c903-4@600.webp",
+      "c903-5.webp", "c903-5@600.webp",
+      "c903-6.webp", "c903-6@600.webp",    // 6枚目は上限超え
       "memo.txt",
     ]) writeFileSync(join(dir, f), "");
     const index = scanPhotos(dir);
@@ -126,8 +179,10 @@ test("scanPhotos: 連番・アイコン・@600・上限を判定する", () => {
     assert.ok(c902.warnings.some((w) => w.includes("連番が飛んでいる")));
     assert.ok(c902.warnings.some((w) => w.includes("c902-1@600.webp が無い")));
     const c903 = index.byId.get("c903");
-    assert.deepEqual(c903.photos, ["c903-1.webp", "c903-2.webp", "c903-3.webp"]);
-    assert.ok(c903.warnings.some((w) => w.includes("4枚目以降の1枚は無視")));
+    assert.deepEqual(c903.photos, [
+      "c903-1.webp", "c903-2.webp", "c903-3.webp", "c903-4.webp", "c903-5.webp",
+    ]);
+    assert.ok(c903.warnings.some((w) => w.includes("6枚目以降の1枚は無視")));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -145,7 +200,7 @@ test("フィクスチャでB-3の警告経路を通す", () => {
     "キャッチコピーが空のため「一言」を使用",
     "役職に個人名が混ざっている可能性（\"架空太郎\" → \"代表\" に置換）",
     "取材日が月日どちらとも取れる形（\"9/2/2026\" → 2026-09-02 と解釈）",
-    "写真0枚（public/photos に c902-1.webp も c902-icon.webp も無い）",
+    "写真0枚（アイコンは頭文字タイルで出る）",
     "初心者 6 > 所属人数 5",
     "年会費が未確認",
     "紹介文が空",

@@ -26,6 +26,7 @@ import {
 } from "@/lib/design";
 import { recruitingLabel, surveyedText } from "@/lib/labels";
 import Hero from "@/components/Hero";
+import DetailReveal from "@/components/DetailReveal";
 import DayCard, { DayCardStatic } from "@/components/DayCard";
 
 export const dynamicParams = false;
@@ -146,7 +147,8 @@ export default async function CirclePage(props: PageProps<"/c/[id]">) {
     <div style={{ position: "relative" }}>
       <Hero circle={c} />
 
-      <div
+      <DetailReveal>
+        <div
         style={{
           position: "relative",
           zIndex: 5,
@@ -265,9 +267,9 @@ export default async function CirclePage(props: PageProps<"/c/[id]">) {
             )
           )}
         </div>
-      </div>
+        </div>
 
-      <div
+        <div
         style={{
           position: "relative",
           zIndex: 5,
@@ -304,7 +306,8 @@ export default async function CirclePage(props: PageProps<"/c/[id]">) {
           情報の修正・取り下げはこちら
         </a>
         <div style={{ fontSize: 11, color: "rgba(255,255,255,.5)" }}>京産大サークル名鑑 2026</div>
-      </div>
+        </div>
+      </DetailReveal>
     </div>
   );
 }

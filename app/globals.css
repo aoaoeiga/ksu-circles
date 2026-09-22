@@ -152,11 +152,26 @@ input::placeholder {
   filter: brightness(0.9) saturate(0.96);
 }
 
-.circle-tile__fallback {
+/* 写真もアイコンも無い団体のタイル（components/InitialTile.tsx）。
+   一覧のタイルと詳細のヒーローで同じものを使う。角丸と比率は親から受ける */
+.initial-tile {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
+  overflow: hidden;
+  /* 頭文字を箱の大きさに追従させる。拡大の途中でも文字が一緒に育つ */
+  container-type: size;
+}
+
+.initial-tile__char {
+  font-family: "Zen Kaku Gothic New", sans-serif;
+  font-size: 42cqmin;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: rgba(255, 255, 255, 0.92);
+  user-select: none;
 }
 
 .circle-avatar {
