@@ -4,9 +4,10 @@ import test from "node:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { mkdirSync } from "node:fs";
 import { readPhotoSources, transformSheets } from "./sheet-transform.ts";
-import { scanPhotos } from "./photo-index.ts";
-import { parseDriveCell } from "./photos.ts";
+import { mergePhotoSources, scanPhotos } from "./photo-index.ts";
+import { parseDriveCell, syncCirclePhotos } from "./photos.ts";
 
 const fixture = JSON.parse(
   readFileSync(new URL("./fixtures/sheet-sample.json", import.meta.url), "utf8")
@@ -141,13 +142,78 @@ test("parseDriveCell: カンマ区切りのDrive URLからファイルIDを取�
   assert.deepEqual(parseDriveCell(`  ${base}${id1} ,  `), [id1]);
 });
 
-test("readPhotoSources: 団体IDごとに写真の元セルを引ける", () => {
+test("readPhotoSources: 団体IDごとに写真の元セルと聞き取りメモを引ける", () => {
   const sources = readPhotoSources(fixture.掲載データ);
   const c901 = sources.get("c901");
   assert.equal(parseDriveCell(c901.icon).length, 1);
   assert.equal(parseDriveCell(c901.photos).length, 2);
+  // 聞き取りメモに紛れた写真のURLは、写真_元 へ移す必要があるので拾えること
+  assert.ok(c901.memo.includes("drive.google.com"));
   // 写真の元が空の団体は null（「写真枚数」は参考用なので読まない）
-  assert.deepEqual(sources.get("c902"), { icon: null, photos: null });
+  assert.deepEqual(sources.get("c902"), {
+    icon: null,
+    photos: null,
+    memo: "読まないメモ",
+  });
+});
+
+test("手で public/circles/<団体ID>/ に置いた写真を、シートが空でも拾う", async () => {
+  // c047 / c014 の運用。最終形の webp を置くだけで出したい
+  const root = mkdtempSync(join(tmpdir(), "ksu-manual-"));
+  try {
+    const dir = join(root, "circles", "c047");
+    mkdirSync(dir, { recursive: true });
+    for (const f of ["icon.webp", "01.webp", "02.webp", "03.webp", "メモ.txt", "0.webp"]) {
+      writeFileSync(join(dir, f), "");
+    }
+    // シートの写真_元・アイコン写真_元がどちらも空でも拾えること
+    const got = await syncCirclePhotos(null, "c047", undefined, undefined, root);
+    assert.equal(got.icon, "/circles/c047/icon.webp");
+    assert.deepEqual(got.photos, [
+      "/circles/c047/01.webp",
+      "/circles/c047/02.webp",
+      "/circles/c047/03.webp",
+    ]);
+    // 手置きなので明るさの記録は無い（manifest が無い）
+    assert.deepEqual(got.stats, []);
+    // ディレクトリが無い団体は空。ここで例外を投げない
+    const none = await syncCirclePhotos(null, "c999", undefined, undefined, root);
+    assert.deepEqual(none, { icon: null, photos: [], stats: [] });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("mergePhotoSources: public/circles を優先し、無ければ public/photos に落とす", () => {
+  const legacy = { icon: "c056-icon.webp", photos: ["c056-1.webp", "c056-2.webp"] };
+
+  // 新しいほうがあれば、それだけを使う（混ぜない）
+  const fresh = { icon: "/circles/c056/icon.webp", photos: ["/circles/c056/01.webp"] };
+  const a = mergePhotoSources(fresh, legacy);
+  assert.deepEqual(a.photos, ["/circles/c056/01.webp"]);
+  assert.equal(a.icon, "/circles/c056/icon.webp");
+  assert.equal(a.usesLegacyPhotos, false);
+
+  // 新しいほうが空なら、古いほうを出し続ける（c054 の経路）
+  const b = mergePhotoSources({ icon: null, photos: [] }, legacy);
+  assert.deepEqual(b.photos, legacy.photos);
+  assert.equal(b.icon, "c056-icon.webp");
+  assert.equal(b.usesLegacyPhotos, true);
+  assert.equal(b.usesLegacyIcon, true);
+
+  // アイコンと写真は別々に判定する（手置きの写真＋旧アイコン）
+  const c = mergePhotoSources({ icon: null, photos: ["/circles/c047/01.webp"] }, legacy);
+  assert.deepEqual(c.photos, ["/circles/c047/01.webp"]);
+  assert.equal(c.icon, "c056-icon.webp");
+  assert.equal(c.usesLegacyPhotos, false);
+  assert.equal(c.usesLegacyIcon, true);
+
+  // 両方空なら空。上限は5枚
+  assert.deepEqual(mergePhotoSources({ icon: null, photos: [] }, undefined), {
+    icon: null, photos: [], usesLegacyPhotos: false, usesLegacyIcon: false,
+  });
+  const many = ["1","2","3","4","5","6"].map((n) => `/circles/c001/0${n}.webp`);
+  assert.equal(mergePhotoSources({ icon: null, photos: many }, undefined).photos.length, 5);
 });
 
 test("scanPhotos: 連番・アイコン・@600・上限を判定する", () => {

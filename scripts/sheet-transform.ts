@@ -14,6 +14,13 @@ export type SheetInput = {
 };
 
 export type SyncWarning = { id: string; message: string };
+/** 写真の取り込み元として sync.ts が読むセル */
+export type PhotoSourceCells = {
+  icon: string | null;
+  photos: string | null;
+  /** 聞き取りメモ。写真のURLが書かれていることがある */
+  memo: string | null;
+};
 export type SyncExcluded = { id: string; reason: string };
 /**
  * 団体IDごとの写真の置き場所。scripts/sync.ts が
@@ -78,6 +85,8 @@ const PUBLISH_COLUMNS = {
   publish: "公開可否",
   iconSource: "アイコン写真_元",
   photoSource: "写真_元",
+  // 移行時の聞き取りメモ。写真のURLが紛れていることがあるので拾って知らせる
+  memo: "聞き取りメモ",
 } as const;
 
 const MASTER_COLUMNS = {
@@ -235,15 +244,16 @@ function makeReader(values: SheetValues, columns: Record<string, string>) {
  */
 export function readPhotoSources(
   values: SheetValues
-): Map<string, { icon: string | null; photos: string | null }> {
+): Map<string, PhotoSourceCells> {
   const reader = makeReader(values, PUBLISH_COLUMNS);
-  const found = new Map<string, { icon: string | null; photos: string | null }>();
+  const found = new Map<string, PhotoSourceCells>();
   for (const row of values.slice(1)) {
     const id = text(reader.get(row, "id"));
     if (!id) continue;
     found.set(id, {
       icon: text(reader.get(row, "iconSource")),
       photos: text(reader.get(row, "photoSource")),
+      memo: text(reader.get(row, "memo")),
     });
   }
   return found;

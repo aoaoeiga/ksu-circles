@@ -18,12 +18,18 @@ import type { Circle, CircleFile } from "../types/circle.ts";
 import {
   readPhotoSources,
   transformSheets,
+  type PhotoSourceCells,
   type SheetInput,
   type SheetValues,
   type SyncWarning,
 } from "./sheet-transform.ts";
-import { scanPhotos, type PhotoIndex } from "./photo-index.ts";
-import { parseDriveCell, syncCirclePhotos, type CirclePhotos } from "./photos.ts";
+import { MAX_PHOTOS, mergePhotoSources, scanPhotos, type PhotoIndex } from "./photo-index.ts";
+import {
+  parseDriveCell,
+  syncCirclePhotos,
+  type CirclePhotos,
+  type PhotoStat,
+} from "./photos.ts";
 
 const OUT_JSON = "data/circles.json";
 const OUT_REPORT = "data/report.md";
@@ -32,8 +38,6 @@ const PUBLIC_DIR = "public";
 const PHOTO_DIR = "public/photos";
 /** scripts/photos.ts が Drive から作る写真 */
 const CIRCLE_DIR = "public/circles";
-/** ヒーローに出す枚数の上限。フォームが5枚まで受けるので5枚（docs/ui/08-carousel.md の推奨3〜5枚） */
-const MAX_PHOTOS = 5;
 const MASTER_SHEET_NAME = "団体マスタ";
 const SCOPES = [
   "https://www.googleapis.com/auth/spreadsheets.readonly",
@@ -135,7 +139,29 @@ async function fetchSheetNames(auth: AuthClient, sheetId: string): Promise<strin
     .filter(Boolean);
 }
 
-type Resolved = { icon: string | null; photos: string[]; warnings: string[] };
+type Resolved = {
+  icon: string | null;
+  photos: string[];
+  warnings: string[];
+  /** 明るさ補正の記録。data/report.md に出す */
+  stats: PhotoStat[];
+};
+
+/**
+ * 聞き取りメモに紛れている Drive のURLを拾う。
+ * 移行中のメモに「写真4枚目以降=…」「写真フォルダ=…」の形で書かれていることがある。
+ */
+function driveLinksIn(memo: string | null): { url: string; id: string; isFolder: boolean }[] {
+  if (!memo) return [];
+  const found: { url: string; id: string; isFolder: boolean }[] = [];
+  for (const raw of memo.match(/https?:\/\/drive\.google\.com\/\S+/g) ?? []) {
+    // 行末の句読点や閉じ括弧はURLに含めない
+    const url = raw.replace(/[)\]}、。，,.]+$/u, "");
+    const id = url.match(/[-\w]{25,}/)?.[0];
+    if (id) found.push({ url, id, isFolder: url.includes("/folders/") });
+  }
+  return found;
+}
 
 /** 写真の取得結果のまとめ。レポートに出す */
 type PhotoSummary = {
@@ -155,15 +181,29 @@ type PhotoSummary = {
 /** public/circles/<団体ID>/ に置いてあるものを読む（Drive を叩かない） */
 function scanCircleDir(slug: string): CirclePhotos {
   const dir = path.join(CIRCLE_DIR, slug);
-  if (!existsSync(dir)) return { icon: null, photos: [] };
+  if (!existsSync(dir)) return { icon: null, photos: [], stats: [] };
   const names = readdirSync(dir);
-  return {
-    icon: names.includes("icon.webp") ? `/circles/${slug}/icon.webp` : null,
-    photos: names
-      .filter((n) => /^\d{2}\.webp$/.test(n))
-      .sort()
-      .map((n) => `/circles/${slug}/${n}`),
-  };
+  const icon = names.includes("icon.webp") ? `/circles/${slug}/icon.webp` : null;
+  const photos = names
+    .filter((n) => /^\d{2}\.webp$/.test(n))
+    .sort()
+    .map((n) => `/circles/${slug}/${n}`);
+
+  // 明るさの記録は取り込み時に manifest へ残してある。手置きの写真には無い
+  let recorded: Record<string, { mean: number | null; brightness: number }> = {};
+  const manifest = path.join(dir, ".manifest.json");
+  if (existsSync(manifest)) {
+    try {
+      recorded = (JSON.parse(readFileSync(manifest, "utf8")).stats ?? {}) as typeof recorded;
+    } catch {
+      recorded = {};
+    }
+  }
+  const stats = [...(icon ? ["icon.webp"] : []), ...photos.map((p) => path.basename(p))]
+    .filter((name) => recorded[name])
+    .map((name) => ({ name, ...recorded[name] }));
+
+  return { icon, photos, stats };
 }
 
 /**
@@ -174,7 +214,7 @@ function scanCircleDir(slug: string): CirclePhotos {
  */
 async function resolvePhotos(
   auth: AuthClient,
-  sources: Map<string, { icon: string | null; photos: string | null }>,
+  sources: Map<string, PhotoSourceCells>,
   photoIndex: PhotoIndex,
   summary: PhotoSummary
 ): Promise<Map<string, Resolved>> {
@@ -217,6 +257,17 @@ async function resolvePhotos(
       }
     }
 
+    // 聞き取りメモに写真のURLが残っていたら、「写真_元」へ移す必要がある
+    const known = new Set([...iconIds, ...photoIds]);
+    for (const link of driveLinksIn(cell.memo)) {
+      if (known.has(link.id)) continue;
+      warnings.push(
+        link.isFolder
+          ? `聞き取りメモに写真フォルダのURLがある。中の写真を「写真_元」に入れる → ${link.url}`
+          : `聞き取りメモに写真のURLがある。「写真_元」の末尾に足す → ${link.url}`
+      );
+    }
+
     if (photoIds.length > MAX_PHOTOS) {
       warnings.push(
         `「写真_元」が${photoIds.length}件。いまのヒーローは${MAX_PHOTOS}枚までなので${photoIds.length - MAX_PHOTOS}件は出さない`
@@ -225,17 +276,17 @@ async function resolvePhotos(
 
     // 新しいほうに何も無ければ、以前 public/photos に置いたものを使う
     const legacy = photoIndex.byId.get(id);
-    const usesLegacyPhotos = fresh.photos.length === 0 && (legacy?.photos.length ?? 0) > 0;
-    const usesLegacyIcon = fresh.icon === null && Boolean(legacy?.icon);
-    if (usesLegacyPhotos || usesLegacyIcon) {
+    const merged = mergePhotoSources(fresh, legacy);
+    if (merged.usesLegacyPhotos || merged.usesLegacyIcon) {
       summary.fromLegacy.push(id);
       legacy?.warnings.forEach((w) => warnings.push(w));
     }
 
     resolved.set(id, {
-      icon: fresh.icon ?? legacy?.icon ?? null,
-      photos: (fresh.photos.length > 0 ? fresh.photos : (legacy?.photos ?? [])).slice(0, MAX_PHOTOS),
+      icon: merged.icon,
+      photos: merged.photos,
       warnings,
+      stats: fresh.stats,
     });
   }
 
@@ -249,7 +300,8 @@ function makeReport(
   warnings: SyncWarning[],
   missingColumns: string[],
   photoIndex: PhotoIndex,
-  summary: PhotoSummary
+  summary: PhotoSummary,
+  photos: Map<string, Resolved>
 ): string {
   const now = new Date();
   const stamp = [
@@ -295,6 +347,25 @@ function makeReport(
   lines.push(
     `  掲載 ${used}枚（${withPhoto}団体） / アイコン ${withIcon}団体 / 写真なし ${circles.length - withPhoto}団体（頭文字タイル）`
   );
+  // 明るさ補正の記録。取り込み直さない回でも manifest から出す（常設）
+  lines.push("", "明るさ補正（元画像の平均輝度 → かけた倍率。補正なし＝もともと明るい）");
+  const withImages = circles.filter((c) => c.photos.length > 0 || c.icon !== null);
+  if (withImages.length === 0) lines.push("  写真のある団体がありません");
+  for (const circle of withImages) {
+    const stats = photos.get(circle.id)?.stats ?? [];
+    if (stats.length === 0) {
+      lines.push(
+        `  ${circle.id.padEnd(6)}記録なし（手で置いた写真、または ${PHOTO_DIR} から出している分）`
+      );
+      continue;
+    }
+    for (const stat of stats) {
+      const mean = stat.mean === null ? "測れず" : stat.mean.toFixed(1).padStart(5);
+      const applied = stat.brightness > 1.0005 ? `×${stat.brightness.toFixed(3)}` : "補正なし";
+      lines.push(`  ${circle.id.padEnd(6)}${stat.name.padEnd(10)}輝度 ${mean}  ${applied}`);
+    }
+  }
+
   // 公開対象にないIDの写真が置いてある（消し忘れ）
   const published = new Set(circles.map((c) => c.id));
   for (const id of [...photoIndex.byId.keys()].sort()) {
@@ -346,7 +417,8 @@ async function main(): Promise<void> {
     result.warnings,
     result.missingColumns,
     photoIndex,
-    summary
+    summary,
+    photos
   );
   writeFileSync(OUT_REPORT, report, "utf8");
   console.log(report);

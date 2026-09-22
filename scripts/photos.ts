@@ -42,14 +42,30 @@ const TARGET_LUMA = 128
 /** 明るさ補正の上限。これ以上は上げない（ノイズが出るので） */
 const MAX_BRIGHTNESS = 1.35
 
+/** 1枚ぶんの明るさ補正の記録。data/report.md に出す */
+export type PhotoStat = {
+  /** 出力ファイル名。icon.webp / 01.webp … */
+  name: string
+  /** 元画像の平均輝度（0-255）。測れなかったときは null */
+  mean: number | null
+  /** かけた明るさの倍率。1 は無補正 */
+  brightness: number
+}
+
 export type CirclePhotos = {
   icon: string | null
   photos: string[]
+  /**
+   * 明るさ補正の記録。**manifest に残すので、取り込み直さない回でも出せる。**
+   * 毎回レポートに出したいが、変わっていない画像は読み直さないため。
+   */
+  stats: PhotoStat[]
 }
 
 type Manifest = {
   v?: number
   files?: Record<string, string>
+  stats?: Record<string, { mean: number | null; brightness: number }>
 }
 
 /**
@@ -77,38 +93,49 @@ async function exists(p: string): Promise<boolean> {
 
 async function downloadFile(auth: Auth, fileId: string): Promise<Buffer> {
   const drive = google.drive({ version: 'v3', auth: auth as never })
-  const res = await drive.files.get(
-    { fileId, alt: 'media', supportsAllDrives: true },
-    { responseType: 'arraybuffer' },
-  )
-  return Buffer.from(res.data as ArrayBuffer)
+  try {
+    const res = await drive.files.get(
+      { fileId, alt: 'media', supportsAllDrives: true },
+      { responseType: 'arraybuffer' },
+    )
+    return Buffer.from(res.data as ArrayBuffer)
+  } catch (error) {
+    // どのファイルで落ちたか分からないと直せない。IDを添えて投げ直す
+    const reason = error instanceof Error ? error.message : String(error)
+    throw new Error(`Drive のファイル ${fileId} を取れませんでした（${reason}）`)
+  }
 }
 
 /**
  * 平均輝度を測って、暗い写真にだけ明るさ補正をかける。
  * 既に明るい写真には 1.0（無補正）を返す。
  */
-async function brightnessFor(buf: Buffer): Promise<number> {
+async function brightnessFor(
+  buf: Buffer,
+): Promise<{ mean: number | null; brightness: number }> {
   try {
     const stats = await sharp(buf).stats()
     const rgb = stats.channels.slice(0, 3)
-    if (!rgb.length) return 1
+    if (!rgb.length) return { mean: null, brightness: 1 }
     const mean = rgb.reduce((s, c) => s + c.mean, 0) / rgb.length
-    if (mean >= TARGET_LUMA) return 1
+    if (mean >= TARGET_LUMA) return { mean, brightness: 1 }
     // 真っ黒に近い写真で倍率が暴れないよう下限を切る
-    return Math.min(MAX_BRIGHTNESS, TARGET_LUMA / Math.max(mean, 60))
+    return {
+      mean,
+      brightness: Math.min(MAX_BRIGHTNESS, TARGET_LUMA / Math.max(mean, 60)),
+    }
   } catch {
-    return 1
+    return { mean: null, brightness: 1 }
   }
 }
 
 async function processImage(
   buf: Buffer,
   opts: { width: number; height: number; quality: number },
-): Promise<Buffer> {
-  const brightness = await brightnessFor(buf)
+): Promise<{ data: Buffer; mean: number | null; brightness: number }> {
+  const { mean, brightness } = await brightnessFor(buf)
 
-  return sharp(buf)
+  const data = await sharp(buf)
     .rotate() // EXIFの向きを反映（スマホ写真が横倒しになるのを防ぐ）
     .resize(opts.width, opts.height, {
       fit: 'cover',
@@ -122,11 +149,13 @@ async function processImage(
     .sharpen({ sigma: 0.8 })
     .webp({ quality: opts.quality, effort: 6 })
     .toBuffer()
+
+  return { data, mean, brightness }
 }
 
 /** すでにディスクにある画像を拾う（スプレッドシートが空のときの保険） */
 async function existingFiles(outDir: string, slug: string): Promise<CirclePhotos> {
-  const result: CirclePhotos = { icon: null, photos: [] }
+  const result: CirclePhotos = { icon: null, photos: [], stats: [] }
   let names: string[]
   try {
     names = await readdir(outDir)
@@ -145,6 +174,23 @@ async function existingFiles(outDir: string, slug: string): Promise<CirclePhotos
   return result
 }
 
+/** 表示に使うファイルの並びどおりに、明るさの記録を組み立てる */
+function statsFor(
+  result: CirclePhotos,
+  recorded: Record<string, { mean: number | null; brightness: number }>,
+): PhotoStat[] {
+  const names = [
+    ...(result.icon ? ['icon.webp'] : []),
+    ...result.photos.map((p) => path.basename(p)),
+  ]
+  return names
+    .map((name) => ({ name, stat: recorded[name] }))
+    .filter((x): x is { name: string; stat: { mean: number | null; brightness: number } } =>
+      Boolean(x.stat),
+    )
+    .map((x) => ({ name: x.name, mean: x.stat.mean, brightness: x.stat.brightness }))
+}
+
 /**
  * 1団体ぶんの写真を同期する。
  */
@@ -160,14 +206,8 @@ export async function syncCirclePhotos(
   const iconIds = parseDriveCell(iconCell)
   const photoIds = parseDriveCell(photoCell)
 
-  // スプレッドシートに何もない場合は、既存のファイルをそのまま使う。
-  // ここで空配列を返すと、サイトから写真が消えたように見えてしまう。
-  if (iconIds.length === 0 && photoIds.length === 0) {
-    return existingFiles(outDir, slug)
-  }
-
-  await mkdir(outDir, { recursive: true })
-
+  // manifest は先に読む。取り込み直さない回でも明るさの記録を出したいので、
+  // シートが空で早く返すときにも使う
   const manifestPath = path.join(outDir, '.manifest.json')
   let manifest: Manifest = {}
   if (await exists(manifestPath)) {
@@ -177,8 +217,23 @@ export async function syncCirclePhotos(
       manifest = {}
     }
   }
-  const prev = manifest.v === PROCESS_VERSION ? manifest.files || {} : {}
+  const sameVersion = manifest.v === PROCESS_VERSION
+  const prev = sameVersion ? manifest.files || {} : {}
+  const prevStats = sameVersion ? manifest.stats || {} : {}
+
+  // スプレッドシートに何もない場合は、既存のファイルをそのまま使う。
+  // ここで空配列を返すと、サイトから写真が消えたように見えてしまう。
+  // 手で置いた写真（manifest が無い）もこの経路で拾う。
+  if (iconIds.length === 0 && photoIds.length === 0) {
+    const kept = await existingFiles(outDir, slug)
+    kept.stats = statsFor(kept, prevStats)
+    return kept
+  }
+
+  await mkdir(outDir, { recursive: true })
+
   const next: Record<string, string> = {}
+  const nextStats: Record<string, { mean: number | null; brightness: number }> = {}
 
   // 既存のファイルを土台にする。今回書き換えたものだけ上書きされる
   const result = await existingFiles(outDir, slug)
@@ -195,7 +250,8 @@ export async function syncCirclePhotos(
         height: ICON.size,
         quality: ICON.quality,
       })
-      await writeFile(abs, out)
+      await writeFile(abs, out.data)
+      nextStats['icon.webp'] = { mean: out.mean, brightness: out.brightness }
     }
     result.icon = `/circles/${slug}/icon.webp`
   }
@@ -210,7 +266,8 @@ export async function syncCirclePhotos(
       if (prev[name] !== id || !(await exists(abs))) {
         const raw = await downloadFile(auth, id)
         const out = await processImage(raw, PHOTO)
-        await writeFile(abs, out)
+        await writeFile(abs, out.data)
+        nextStats[name] = { mean: out.mean, brightness: out.brightness }
       }
       paths.push(`/circles/${slug}/${name}`)
     }
@@ -223,10 +280,13 @@ export async function syncCirclePhotos(
   Object.keys(prev).forEach((k) => {
     if (next[k] == null) next[k] = prev[k]
   })
+  // 明るさの記録も同じ。読み直さなかった画像は前回の値を引き継ぐ
+  const mergedStats = { ...prevStats, ...nextStats }
 
   await writeFile(
     manifestPath,
-    JSON.stringify({ v: PROCESS_VERSION, files: next }, null, 2),
+    JSON.stringify({ v: PROCESS_VERSION, files: next, stats: mergedStats }, null, 2),
   )
+  result.stats = statsFor(result, mergedStats)
   return result
 }
