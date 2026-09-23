@@ -4,6 +4,8 @@ node_modules
 .env.local
 data/report.md
 data/.image-cache.json
+# シートを書き換える前の控え（戻す用。手元にだけ置く）
+data/sheet-backup-*.md
 .DS_Store
 
 # Next.js / TypeScript
