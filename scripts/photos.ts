@@ -6,7 +6,7 @@
 // 方針:
 //   - 一度書き出したファイルは絶対に消さない。スプレッドシートが空でも、
 //     すでにディスクにある画像をそのまま使い続ける
-//   - 暗い写真は自動で持ち上げる。明るい写真には触らない
+//   - 暗い写真は中間調だけ持ち上げる（ガンマ）。白は飛ばさない。明るい写真には触らない
 //   - 画質優先（webp q88-90 / 長辺1600 / 軽くシャープ）
 
 import { google } from 'googleapis'
@@ -25,7 +25,7 @@ const FILE_ID_RE = /[-\w]{25,}/
  * 画像処理の設定を変えたらこの数字を上げる。
  * manifest に記録され、値が変わっていれば同じファイルでも作り直す。
  */
-const PROCESS_VERSION = 3
+const PROCESS_VERSION = 4
 
 const ICON = {
   size: 640,
@@ -39,9 +39,12 @@ const PHOTO = {
 }
 
 /** 目標の平均輝度（0-255）。これを下回る写真だけ持ち上げる */
-const TARGET_LUMA = 128
-/** 明るさ補正の上限。これ以上は上げない（ノイズが出るので） */
-const MAX_BRIGHTNESS = 1.35
+const TARGET_LUMA = 120
+/**
+ * 中間調を持ち上げる上限（平均輝度を何倍までにするか）。
+ * 1.35 の掛け算では白飛びと質感の変化が目立ったので、ガンマに変えて上限も下げた
+ */
+const MAX_BRIGHTNESS = 1.15
 
 /** 1枚ぶんの明るさ補正の記録。data/report.md に出す */
 export type PhotoStat = {
@@ -49,8 +52,10 @@ export type PhotoStat = {
   name: string
   /** 元画像の平均輝度（0-255）。測れなかったときは null */
   mean: number | null
-  /** かけた明るさの倍率。1 は無補正 */
+  /** 中間調の持ち上げ倍率（補正後の平均輝度の目安 ÷ 元の平均輝度）。1 は無補正 */
   brightness: number
+  /** トーンカーブの指数 p（out = in^p）。1 は無補正。古い記録には無い */
+  gamma?: number
 }
 
 /** 取り込めなかった1枚ぶん */
@@ -80,8 +85,10 @@ export type CirclePhotos = {
 type Manifest = {
   v?: number
   files?: Record<string, string>
-  stats?: Record<string, { mean: number | null; brightness: number }>
+  stats?: Record<string, RecordedStat>
 }
+
+type RecordedStat = { mean: number | null; brightness: number; gamma?: number }
 
 /**
  * フォームの1セル（カンマ区切りのDrive URL）からファイルIDを取り出す。
@@ -159,26 +166,45 @@ async function toDecodable(buf: Buffer): Promise<Buffer> {
 }
 
 /**
- * 平均輝度を測って、暗い写真にだけ明るさ補正をかける。
+ * 平均輝度を測って、暗い写真にだけかけるトーンカーブを決める。
  * 既に明るい写真には 1.0（無補正）を返す。
+ *
+ * 掛け算で明るくすると、もともと明るい部分が 255 に張り付いて白く飛ぶ。
+ * out = 255·(in/255)^p（p < 1）なら 0 と 255 は動かず、中間調だけが持ち上がる。
+ * p は「平均輝度 mean の画素が target に来る」ように決める
  */
-async function brightnessFor(
-  buf: Buffer,
-): Promise<{ mean: number | null; brightness: number }> {
+export function toneFor(mean: number | null): { brightness: number; gamma: number } {
+  if (mean == null || mean <= 0 || mean >= TARGET_LUMA) return { brightness: 1, gamma: 1 }
+  const target = Math.min(TARGET_LUMA, mean * MAX_BRIGHTNESS)
+  return {
+    brightness: target / mean,
+    gamma: Math.log(target / 255) / Math.log(mean / 255),
+  }
+}
+
+async function measure(buf: Buffer): Promise<RecordedStat> {
+  let mean: number | null = null
   try {
     const stats = await sharp(buf).stats()
     const rgb = stats.channels.slice(0, 3)
-    if (!rgb.length) return { mean: null, brightness: 1 }
-    const mean = rgb.reduce((s, c) => s + c.mean, 0) / rgb.length
-    if (mean >= TARGET_LUMA) return { mean, brightness: 1 }
-    // 真っ黒に近い写真で倍率が暴れないよう下限を切る
-    return {
-      mean,
-      brightness: Math.min(MAX_BRIGHTNESS, TARGET_LUMA / Math.max(mean, 60)),
-    }
+    if (rgb.length) mean = rgb.reduce((s, c) => s + c.mean, 0) / rgb.length
   } catch {
-    return { mean: null, brightness: 1 }
+    // 測れなければ補正しない
   }
+  return { mean, ...toneFor(mean) }
+}
+
+/** RGB の各チャンネルにトーンカーブをかける。アルファには触らない */
+function applyGamma(pixels: Buffer, channels: number, gamma: number): Buffer {
+  if (gamma === 1) return pixels
+  const lut = new Uint8Array(256)
+  for (let v = 0; v < 256; v++) lut[v] = Math.round(255 * Math.pow(v / 255, gamma))
+  const out = Buffer.from(pixels)
+  for (let i = 0; i < out.length; i++) {
+    if (channels === 4 && i % 4 === 3) continue
+    out[i] = lut[out[i]]
+  }
+  return out
 }
 
 /**
@@ -203,9 +229,9 @@ export function centerCrop(
 async function processImage(
   buf: Buffer,
   opts: { width: number; height: number; quality: number },
-): Promise<{ data: Buffer; mean: number | null; brightness: number }> {
+): Promise<{ data: Buffer } & RecordedStat> {
   buf = await toDecodable(buf)
-  const { mean, brightness } = await brightnessFor(buf)
+  const stat = await measure(buf)
 
   // 先に中央で目標の縦横比に切り抜いてから縮める。
   // cover と withoutEnlargement を併用すると、元が小さい写真は切り抜きが効かず
@@ -214,22 +240,29 @@ async function processImage(
   const meta = await sharp(buf).metadata()
   const crop = centerCrop(meta.autoOrient.width, meta.autoOrient.height, opts.width / opts.height)
 
-  const data = await sharp(buf)
+  const resized = await sharp(buf)
     .rotate() // EXIFの向きを反映（スマホ写真が横倒しになるのを防ぐ）。extract より前に呼ぶ
     .extract(crop)
     .resize(opts.width, opts.height, {
       fit: 'fill', // 比率は extract で合わせ済み。丸めの1px差で切り落とさない
       withoutEnlargement: true, // 元が小さい写真を無理に拡大しない
     })
+    .toColorspace('srgb')
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+  const { width, height, channels } = resized.info
+
+  const data = await sharp(applyGamma(resized.data, channels, stat.gamma ?? 1), {
+    raw: { width, height, channels },
+  })
     .modulate({
-      brightness,
-      saturation: brightness > 1 ? 1.05 : 1, // 明るくした分だけ色が抜けるので軽く戻す
+      saturation: stat.brightness > 1 ? 1.03 : 1, // 持ち上げた分だけ色が浅くなるので、ごく軽く戻す
     })
     .sharpen({ sigma: 0.8 })
     .webp({ quality: opts.quality, effort: 6 })
     .toBuffer()
 
-  return { data, mean, brightness }
+  return { data, ...stat }
 }
 
 /** すでにディスクにある画像を拾う（スプレッドシートが空のときの保険） */
@@ -256,7 +289,7 @@ async function existingFiles(outDir: string, slug: string): Promise<CirclePhotos
 /** 表示に使うファイルの並びどおりに、明るさの記録を組み立てる */
 function statsFor(
   result: CirclePhotos,
-  recorded: Record<string, { mean: number | null; brightness: number }>,
+  recorded: Record<string, RecordedStat>,
 ): PhotoStat[] {
   const names = [
     ...(result.icon ? ['icon.webp'] : []),
@@ -264,10 +297,8 @@ function statsFor(
   ]
   return names
     .map((name) => ({ name, stat: recorded[name] }))
-    .filter((x): x is { name: string; stat: { mean: number | null; brightness: number } } =>
-      Boolean(x.stat),
-    )
-    .map((x) => ({ name: x.name, mean: x.stat.mean, brightness: x.stat.brightness }))
+    .filter((x): x is { name: string; stat: RecordedStat } => Boolean(x.stat))
+    .map((x) => ({ name: x.name, ...x.stat }))
 }
 
 /**
@@ -315,7 +346,7 @@ export async function syncCirclePhotos(
   await mkdir(outDir, { recursive: true })
 
   const next: Record<string, string> = {}
-  const nextStats: Record<string, { mean: number | null; brightness: number }> = {}
+  const nextStats: Record<string, RecordedStat> = {}
 
   // 既存のファイルを土台にする。今回書き換えたものだけ上書きされる
   const result = await existingFiles(outDir, slug)
@@ -334,7 +365,7 @@ export async function syncCirclePhotos(
           quality: ICON.quality,
         })
         await writeFile(abs, out.data)
-        nextStats['icon.webp'] = { mean: out.mean, brightness: out.brightness }
+        nextStats['icon.webp'] = { mean: out.mean, brightness: out.brightness, gamma: out.gamma }
       }
       next['icon'] = iconId
       result.icon = `/circles/${slug}/icon.webp`
@@ -363,7 +394,7 @@ export async function syncCirclePhotos(
           const raw = await download(auth, id)
           const out = await processImage(raw, PHOTO)
           await writeFile(abs, out.data)
-          nextStats[name] = { mean: out.mean, brightness: out.brightness }
+          nextStats[name] = { mean: out.mean, brightness: out.brightness, gamma: out.gamma }
         }
         next[name] = id
         paths.push(`/circles/${slug}/${name}`)

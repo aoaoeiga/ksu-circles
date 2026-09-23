@@ -28,6 +28,7 @@ import { recruitingLabel, surveyedText } from "@/lib/labels";
 import Hero from "@/components/Hero";
 import DetailReveal from "@/components/DetailReveal";
 import DayCard, { DayCardStatic } from "@/components/DayCard";
+import ReviewNotice from "@/components/ReviewNotice";
 
 export const dynamicParams = false;
 
@@ -44,6 +45,12 @@ export async function generateMetadata(props: PageProps<"/c/[id]">): Promise<Met
   return {
     title: `${c.short_name} | 京産大サークル名鑑`,
     description: c.one_liner,
+    // 確認用ページは ALLOW_INDEXING に関わらず常に noindex（検索に出さない）。
+    // 一覧に出す団体ではキーごと置かない。robots: undefined と書くと
+    // app/layout.tsx の公開前 noindex を打ち消してしまう
+    ...(c.listed
+      ? {}
+      : { robots: { index: false, follow: false, googleBot: { index: false, follow: false } } }),
     openGraph: ogFile
       ? {
           images: [
@@ -145,6 +152,7 @@ export default async function CirclePage(props: PageProps<"/c/[id]">) {
 
   return (
     <div style={{ position: "relative" }}>
+      {!c.listed && <ReviewNotice />}
       <Hero circle={c} />
 
       <DetailReveal>

@@ -192,7 +192,7 @@ function scanCircleDir(slug: string): CirclePhotos {
     .map((n) => `/circles/${slug}/${n}`);
 
   // 明るさの記録は取り込み時に manifest へ残してある。手置きの写真には無い
-  let recorded: Record<string, { mean: number | null; brightness: number }> = {};
+  let recorded: Record<string, { mean: number | null; brightness: number; gamma?: number }> = {};
   const manifest = path.join(dir, ".manifest.json");
   if (existsSync(manifest)) {
     try {
@@ -319,9 +319,14 @@ function makeReport(
   ].join(" ");
   const lines = [
     `=== sync ${stamp} ===`,
-    `掲載データ ${sourceRows}行 / 公開 ${circles.length}件 / 除外 ${excluded.length}件`,
+    `掲載データ ${sourceRows}行 / 一覧に出す ${circles.filter((c) => c.listed).length}件 / 確認用ページ ${circles.filter((c) => !c.listed).length}件 / 除外 ${excluded.length}件`,
     "",
   ];
+  const forReview = circles.filter((c) => !c.listed);
+  lines.push("確認用ページ（一覧に出さない。URL を直接開いたときだけ見られる。noindex）");
+  if (forReview.length === 0) lines.push("  なし");
+  else forReview.forEach((c) => lines.push(`  ${c.id.padEnd(6)}/c/${c.id}  ${c.short_name}`));
+  lines.push("");
   if (missingColumns.length > 0) {
     lines.push("見つからなかった列（見出しがずれている可能性）");
     missingColumns.forEach((column) => lines.push(`  ${column}`));
@@ -362,7 +367,7 @@ function makeReport(
     `  掲載 ${used}枚（${withPhoto}団体） / アイコン ${withIcon}団体 / 写真なし ${circles.length - withPhoto}団体（頭文字タイル）`
   );
   // 明るさ補正の記録。取り込み直さない回でも manifest から出す（常設）
-  lines.push("", "明るさ補正（元画像の平均輝度 → かけた倍率。補正なし＝もともと明るい）");
+  lines.push("", "明るさ補正（元画像の平均輝度 → 中間調の持ち上げ倍率とトーンカーブの指数。白は動かさない。補正なし＝もともと明るい）");
   const withImages = circles.filter((c) => c.photos.length > 0 || c.icon !== null);
   if (withImages.length === 0) lines.push("  写真のある団体がありません");
   for (const circle of withImages) {
@@ -375,7 +380,8 @@ function makeReport(
     }
     for (const stat of stats) {
       const mean = stat.mean === null ? "測れず" : stat.mean.toFixed(1).padStart(5);
-      const applied = stat.brightness > 1.0005 ? `×${stat.brightness.toFixed(3)}` : "補正なし";
+      const gamma = stat.gamma !== undefined ? `（γ ${stat.gamma.toFixed(3)}）` : "";
+      const applied = stat.brightness > 1.0005 ? `中間調 ×${stat.brightness.toFixed(3)}${gamma}` : "補正なし";
       lines.push(`  ${circle.id.padEnd(6)}${stat.name.padEnd(10)}輝度 ${mean}  ${applied}`);
     }
   }
@@ -421,7 +427,6 @@ async function main(): Promise<void> {
   const photos = await resolvePhotos(auth, sources, photoIndex, summary);
 
   const result = transformSheets(input, {
-    includeUnconfirmed: process.env.INCLUDE_UNCONFIRMED === "1",
     only: ONLY,
     photos: (id) => photos.get(id),
   });

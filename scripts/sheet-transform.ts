@@ -38,7 +38,6 @@ export type TransformResult = {
 };
 
 type TransformOptions = {
-  includeUnconfirmed?: boolean;
   only?: string[] | null;
   now?: Date;
   /** 団体IDごとの写真ファイル名。省略時は写真なし扱い（テスト用） */
@@ -190,15 +189,16 @@ function toISODate(value: SheetCell | undefined): { date: string | null; ambiguo
 function cleanRole(raw: string | null, warn: (message: string) => void): string {
   const normalized = (raw ?? "").normalize("NFKC").trim();
   if (!normalized) return "代表";
-  const roles = "代表|副代表|部長|副部長|主将|副主将|代表者|会長|幹事長|マネージャー";
-  const exact = new RegExp(`^\\s*(${roles})\\s*[（(]?\\s*(\\d)\\s*年?\\s*[)）]?\\s*$`).exec(normalized);
+  const roles = "代表|副代表|部長|副部長|主将|副主将|主務|副主務|会計|代表者|会長|幹事長|マネージャー";
+  // 学年は「3年」のほか、関西で使う「3回生」も読む。役職との間の「・」も許す（例: 主務・2回生）
+  const exact = new RegExp(`^\\s*(${roles})\\s*[・･]?\\s*[（(]?\\s*(\\d)\\s*(?:年|回生)?\\s*[)）]?\\s*$`).exec(normalized);
   if (exact) return `${exact[1]}（${exact[2]}年）`;
 
   const roleOnly = new RegExp(`^(${roles})$`).exec(normalized.replace(/[\s　]/g, ""));
   if (roleOnly) return roleOnly[1];
 
   const role = new RegExp(`(${roles})`).exec(normalized);
-  const year = /(\d)\s*年/.exec(normalized);
+  const year = /(\d)\s*(?:年|回生)/.exec(normalized);
   const rebuilt = year
     ? `${role ? role[1] : "代表"}（${year[1]}年）`
     : role
@@ -327,11 +327,14 @@ export function transformSheets(input: SheetInput, options: TransformOptions = {
       warn("原稿なしで OK になっている");
       effectiveStatus = "確認中";
     }
-    const included =
-      effectiveStatus === "OK" ||
-      (options.includeUnconfirmed === true && effectiveStatus === "確認中");
-    if (!included) {
-      excluded.push({ id, reason: `公開可否 = ${effectiveStatus ?? "(空欄)"}` });
+    // 公開可否の3つの扱い:
+    //   OK（原稿あり）   一覧に出す
+    //   空欄・確認中     掲載前の確認用ページ。一覧に出さず、URL を直接開いたときだけ見られる
+    //   それ以外（NG など） ビルドに含めない
+    const listed = effectiveStatus === "OK";
+    const forReview = effectiveStatus === null || effectiveStatus === "確認中";
+    if (!listed && !forReview) {
+      excluded.push({ id, reason: `公開可否 = ${effectiveStatus}` });
       continue;
     }
 
@@ -454,6 +457,7 @@ export function transformSheets(input: SheetInput, options: TransformOptions = {
       icon,
       photos,
       tile_size: tileSize,
+      listed,
     };
     circles.push(circle);
   }

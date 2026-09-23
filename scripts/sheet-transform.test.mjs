@@ -8,7 +8,7 @@ import { mkdirSync } from "node:fs";
 import sharp from "sharp";
 import { readPhotoSources, transformSheets } from "./sheet-transform.ts";
 import { mergePhotoSources, scanPhotos } from "./photo-index.ts";
-import { centerCrop, isHevcHeif, parseDriveCell, syncCirclePhotos } from "./photos.ts";
+import { centerCrop, isHevcHeif, parseDriveCell, syncCirclePhotos, toneFor } from "./photos.ts";
 
 const fixture = JSON.parse(
   readFileSync(new URL("./fixtures/sheet-sample.json", import.meta.url), "utf8")
@@ -21,15 +21,35 @@ const photos = (id) =>
     ? { icon: "c901-icon.webp", photos: ["c901-1.webp", "c901-2.webp"], warnings: [] }
     : undefined;
 
-test("公開用では原稿のないOK行を確認中として除外し、未面談行をスキップする", () => {
+test("OK は一覧、原稿のない OK・空欄・確認中は確認用ページ、NG は除外、未面談行はスキップ", () => {
   const result = transformSheets(fixture, { now });
-  assert.deepEqual(result.circles.map((circle) => circle.id), ["c901"]);
-  assert.deepEqual(result.excluded, [{ id: "c902", reason: "公開可否 = 確認中" }]);
+  // c902 は OK だが原稿がないので確認用ページ。c903 は通称が空（未面談）なので行ごと飛ばす
+  assert.deepEqual(
+    result.circles.map((circle) => [circle.id, circle.listed]),
+    [["c901", true], ["c902", false]]
+  );
+  assert.deepEqual(result.excluded, []);
   assert.equal(result.sourceRows, 3);
+
+  const status = fixture.掲載データ[0].indexOf("公開可否");
+  const withStatus = (value) => {
+    const input = structuredClone(fixture);
+    input.掲載データ[2][status] = value;
+    return transformSheets(input, { now });
+  };
+  for (const value of ["", "確認中"]) {
+    const got = withStatus(value);
+    assert.deepEqual(got.circles.map((c) => [c.id, c.listed]), [["c901", true], ["c902", false]], `公開可否 = "${value}"`);
+  }
+  for (const value of ["NG", "非公開"]) {
+    const got = withStatus(value);
+    assert.deepEqual(got.circles.map((c) => c.id), ["c901"], `公開可否 = "${value}"`);
+    assert.deepEqual(got.excluded, [{ id: "c902", reason: `公開可否 = ${value}` }]);
+  }
 });
 
-test("preview用では確認中を含め、新しいCircle型へ完全変換する", () => {
-  const result = transformSheets(fixture, { includeUnconfirmed: true, now, photos });
+test("新しいCircle型へ完全変換する", () => {
+  const result = transformSheets(fixture, { now, photos });
   assert.deepEqual(result.missingColumns, []);
   assert.deepEqual(result.circles[0], {
     id: "c901",
@@ -62,7 +82,8 @@ test("preview用では確認中を含め、新しいCircle型へ完全変換す�
     },
     icon: "c901-icon.webp",
     photos: ["c901-1.webp", "c901-2.webp"],
-    tile_size: "L"
+    tile_size: "L",
+    listed: true
   });
   assert.deepEqual(
     Object.keys(result.circles[0]),
@@ -71,7 +92,7 @@ test("preview用では確認中を含め、新しいCircle型へ完全変換す�
       "active_days", "days_undecided", "frequency", "place", "annual_fee",
       "member_count", "beginner_count", "first_year_count", "male_ratio", "ease",
       "senior_call", "multi_club", "description", "leader_comment", "recruiting",
-      "surveyed_at", "sns", "icon", "photos", "tile_size"
+      "surveyed_at", "sns", "icon", "photos", "tile_size", "listed"
     ]
   );
 });
@@ -81,7 +102,7 @@ test("取材日のGoogle Sheetsシリアル値を1899-12-30起点で解釈する
   const surveyedAt = input.掲載データ[0].indexOf("取材日");
   input.掲載データ[1][surveyedAt] = 46264;
 
-  const result = transformSheets(input, { includeUnconfirmed: true, now, photos });
+  const result = transformSheets(input, { now, photos });
   assert.equal(result.circles[0].surveyed_at, "2026-08-30");
   assert.equal(
     result.warnings.some(
@@ -92,7 +113,7 @@ test("取材日のGoogle Sheetsシリアル値を1899-12-30起点で解釈する
 });
 
 test("transformSheets は写真の列を自分で読まず、渡された走査結果だけを使う", () => {
-  const result = transformSheets(fixture, { includeUnconfirmed: true, now });
+  const result = transformSheets(fixture, { now });
   // photos を渡さなければ、シートにURLがあっても写真なし
   assert.equal(result.circles[0].icon, null);
   assert.deepEqual(result.circles[0].photos, []);
@@ -293,7 +314,7 @@ test("scanPhotos: 連番・アイコン・@600・上限を判定する", () => {
 });
 
 test("フィクスチャでB-3の警告経路を通す", () => {
-  const result = transformSheets(fixture, { includeUnconfirmed: true, now });
+  const result = transformSheets(fixture, { now });
   const messages = result.warnings
     .filter((warning) => warning.id === "c902")
     .map((warning) => warning.message);
@@ -394,4 +415,54 @@ test("写真は元の大きさに関わらず 3:2、アイコンは 1:1 で出�
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("toneFor: 中間調の持ち上げは ×1.15 と目標輝度で頭打ち。明るい写真には触らない", () => {
+  assert.deepEqual(toneFor(null), { brightness: 1, gamma: 1 });
+  assert.deepEqual(toneFor(150), { brightness: 1, gamma: 1 });
+  const dark = toneFor(60);
+  assert.ok(Math.abs(dark.brightness - 1.15) < 1e-9, "暗い写真でも 1.15 倍まで");
+  assert.ok(dark.gamma < 1, "p < 1 で中間調が上がる");
+  // 目標のすぐ下は、目標までしか上げない
+  const near = toneFor(115);
+  assert.ok(near.brightness < 1.15 && near.brightness > 1);
+  assert.ok(Math.abs(255 * Math.pow(115 / 255, near.gamma) - 115 * near.brightness) < 1e-6);
+});
+
+test("明るさ補正は白を飛ばさず、暗いところだけ持ち上げる", async () => {
+  // 上 3割が明るい壁（230）、下 7割が暗い床（40）。平均は目標より暗い
+  const root = mkdtempSync(join(tmpdir(), "ksu-tone-"));
+  const [w, h] = [300, 200];
+  const px = Buffer.alloc(w * h * 3);
+  for (let y = 0; y < h; y++) px.fill(y < 60 ? 230 : 40, y * w * 3, (y + 1) * w * 3);
+  const png = await sharp(px, { raw: { width: w, height: h, channels: 3 } }).png().toBuffer();
+  try {
+    const got = await syncCirclePhotos(null, "c900", undefined, `https://drive.google.com/open?id=${"1TONE".padEnd(33, "x")}`, root, {
+      download: async () => png,
+    });
+    assert.ok(got.stats[0].brightness > 1 && got.stats[0].brightness <= 1.15 + 1e-9);
+    const { data } = await sharp(join(root, "circles", "c900", "01.webp")).raw().toBuffer({ resolveWithObject: true });
+    const at = (y) => data[(y * w + w / 2) * 3];
+    assert.ok(at(20) < 245, `明るい壁が白に張り付いた: ${at(20)}`);
+    assert.ok(at(20) >= 226, `明るい壁が暗くなった: ${at(20)}`);
+    assert.ok(at(150) > 44, `暗い床が持ち上がっていない: ${at(150)}`);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("役職: 主務や「2回生」の書き方を、個人名と取り違えずに読む", () => {
+  const roleCol = fixture.掲載データ[0].indexOf("役職");
+  const roleOf = (raw) => {
+    const input = structuredClone(fixture);
+    input.掲載データ[1][roleCol] = raw;
+    const result = transformSheets(input, { now });
+    const warned = result.warnings.some((w) => w.id === "c901" && w.message.startsWith("役職に個人名"));
+    return [result.circles[0].leader_comment.role, warned];
+  };
+  assert.deepEqual(roleOf("主務・2回生"), ["主務（2年）", false]);
+  assert.deepEqual(roleOf("副部長 3回生"), ["副部長（3年）", false]);
+  assert.deepEqual(roleOf("代表（3年）"), ["代表（3年）", false]);
+  // 個人名が入っていれば、これまでどおり置き換えて知らせる
+  assert.deepEqual(roleOf("主務 架空花子 2回生"), ["主務（2年）", true]);
 });

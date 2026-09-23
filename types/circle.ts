@@ -68,6 +68,13 @@ export type Circle = {
   photos: string[];
   /** 一覧のタイルの大きさ。シートで指定する。既定は "M" */
   tile_size: "S" | "M" | "L";
+
+  /**
+   * 一覧に出すか。公開可否 = OK（原稿あり）だけ true。
+   * false は掲載前の確認用ページ: 一覧には出さず、/c/{id} を直接開いたときだけ見られる。noindex。
+   * 判定は sync 側（scripts/sheet-transform.ts）で行う
+   */
+  listed: boolean;
 };
 
 export type CircleFile = { _note?: string; circles: Circle[] };
