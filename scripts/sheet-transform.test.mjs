@@ -5,6 +5,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
+import sharp from "sharp";
 import { readPhotoSources, transformSheets } from "./sheet-transform.ts";
 import { mergePhotoSources, scanPhotos } from "./photo-index.ts";
 import { parseDriveCell, syncCirclePhotos } from "./photos.ts";
@@ -178,7 +179,44 @@ test("手で public/circles/<団体ID>/ に置いた写真を、シートが空�
     assert.deepEqual(got.stats, []);
     // ディレクトリが無い団体は空。ここで例外を投げない
     const none = await syncCirclePhotos(null, "c999", undefined, undefined, root);
-    assert.deepEqual(none, { icon: null, photos: [], stats: [] });
+    assert.deepEqual(none, { icon: null, photos: [], stats: [], failures: [] });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("写真が1枚読めなくても、残りの写真は取り込む", async () => {
+  // HEIC など sharp が読めない形式が1枚混ざるケース。
+  // その1枚だけ落として、他の写真とアイコンは出したい
+  const root = mkdtempSync(join(tmpdir(), "ksu-partial-"));
+  try {
+    const png = await sharp({
+      create: { width: 40, height: 30, channels: 3, background: { r: 10, g: 10, b: 10 } },
+    }).png().toBuffer();
+    const bad = "1BADBADBADBADBADBADBADBADBADBAD04";
+    const cell = ["1AAA", "1BBB", "1CCC", bad]
+      .map((x) => `https://drive.google.com/open?id=${x.padEnd(33, "x")}`)
+      .join(", ");
+
+    const got = await syncCirclePhotos(null, "c056", undefined, cell, root, {
+      download: async (_auth, fileId) => {
+        if (fileId.startsWith("1BADBAD")) throw new Error("Input buffer contains unsupported image format");
+        return png;
+      },
+    });
+
+    // 落ちた1枚を除いて出す。番号は詰めない
+    assert.deepEqual(got.photos, [
+      "/circles/c056/01.webp",
+      "/circles/c056/02.webp",
+      "/circles/c056/03.webp",
+    ]);
+    assert.equal(got.failures.length, 1);
+    assert.equal(got.failures[0].name, "04.webp");
+    assert.match(got.failures[0].message, /unsupported image format/);
+    // 取り込めた3枚の明るさは記録されている（1枚落ちても manifest を書く）
+    assert.equal(got.stats.length, 3);
+    assert.ok(got.stats.every((s) => s.brightness > 1), "暗い画像なので持ち上がるはず");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

@@ -170,10 +170,12 @@ type PhotoSummary = {
   sheetFiles: number;
   /** アイコン写真_元 が入っていた団体数 */
   sheetIcons: number;
-  /** 実際に Drive から取得できた団体数 */
+  /** public/circles に写真が置かれている団体数 */
   fetched: number;
-  /** 取得に失敗した団体と理由 */
+  /** 団体まるごと取得に失敗したもの（認証エラーなど） */
   failures: { id: string; message: string }[];
+  /** 1枚だけ取り込めなかったもの */
+  fileFailures: { id: string; name: string; fileId: string; message: string }[];
   /** ディスクにある古いほうの写真を使った団体 */
   fromLegacy: string[];
 };
@@ -181,7 +183,7 @@ type PhotoSummary = {
 /** public/circles/<団体ID>/ に置いてあるものを読む（Drive を叩かない） */
 function scanCircleDir(slug: string): CirclePhotos {
   const dir = path.join(CIRCLE_DIR, slug);
-  if (!existsSync(dir)) return { icon: null, photos: [], stats: [] };
+  if (!existsSync(dir)) return { icon: null, photos: [], stats: [], failures: [] };
   const names = readdirSync(dir);
   const icon = names.includes("icon.webp") ? `/circles/${slug}/icon.webp` : null;
   const photos = names
@@ -203,7 +205,7 @@ function scanCircleDir(slug: string): CirclePhotos {
     .filter((name) => recorded[name])
     .map((name) => ({ name, ...recorded[name] }));
 
-  return { icon, photos, stats };
+  return { icon, photos, stats, failures: [] };
 }
 
 /**
@@ -246,7 +248,14 @@ async function resolvePhotos(
           cell.photos ?? undefined,
           PUBLIC_DIR
         );
-        if (photoIds.length > 0 || iconIds.length > 0) summary.fetched += 1;
+        // 「取り込めた」は、public/circles に実体があることで数える。
+        // 1枚も落とせていないのに成功数に入れると、失敗に気づけない
+        if (fresh.photos.length > 0 || fresh.icon !== null) summary.fetched += 1;
+        // 1枚だけ落ちた分。団体まるごとは失敗させない
+        for (const f of fresh.failures) {
+          summary.fileFailures.push({ id, name: f.name, fileId: f.fileId, message: f.message });
+          warnings.push(`${f.name} を取り込めなかった（${f.fileId}）: ${f.message.split("\n")[0]}`);
+        }
       } catch (error) {
         // 落とせなくても、すでにディスクにあるものは出し続ける。
         // ここで止めると写真がサイトから消える
@@ -335,10 +344,15 @@ function makeReport(
   lines.push(
     DRY_RUN
       ? "  --dry-run のため Drive からは取得していません（件数だけ数えました）"
-      : `  ${CIRCLE_DIR} に取り込み ${summary.fetched}団体 / 失敗 ${summary.failures.length}団体`
+      : `  ${CIRCLE_DIR} に写真がある ${summary.fetched}団体` +
+        ` / 取り込めなかったファイル ${summary.fileFailures.length}件` +
+        ` / 団体ごと失敗 ${summary.failures.length}件`
   );
   summary.failures.forEach((f) =>
     lines.push(`  ${f.id.padEnd(6)}Drive 取得に失敗: ${f.message.split("\n")[0]}`)
+  );
+  summary.fileFailures.forEach((f) =>
+    lines.push(`  ${f.id.padEnd(6)}${f.name} だけ取り込めず（${f.fileId}）: ${f.message.split("\n")[0]}`)
   );
   lines.push(
     `  ${PHOTO_DIR}（以前に手で置いたもの）を走査（${photoIndex.fileCount}ファイル）` +
@@ -400,6 +414,7 @@ async function main(): Promise<void> {
     sheetIcons: 0,
     fetched: 0,
     failures: [],
+    fileFailures: [],
     fromLegacy: [],
   };
   const sources = readPhotoSources(input.掲載データ);

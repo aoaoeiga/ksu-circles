@@ -52,9 +52,23 @@ export type PhotoStat = {
   brightness: number
 }
 
+/** 取り込めなかった1枚ぶん */
+export type PhotoFailure = {
+  /** 出力ファイル名。icon.webp / 01.webp … */
+  name: string
+  fileId: string
+  message: string
+}
+
 export type CirclePhotos = {
   icon: string | null
   photos: string[]
+  /**
+   * 取り込めなかった写真。**1枚落ちても他の写真は出す。**
+   * HEIC など sharp が読めない形式が1枚混ざっただけで、
+   * その団体の写真が全部消えてしまうのを避ける。
+   */
+  failures: PhotoFailure[]
   /**
    * 明るさ補正の記録。**manifest に残すので、取り込み直さない回でも出せる。**
    * 毎回レポートに出したいが、変わっていない画像は読み直さないため。
@@ -155,7 +169,7 @@ async function processImage(
 
 /** すでにディスクにある画像を拾う（スプレッドシートが空のときの保険） */
 async function existingFiles(outDir: string, slug: string): Promise<CirclePhotos> {
-  const result: CirclePhotos = { icon: null, photos: [], stats: [] }
+  const result: CirclePhotos = { icon: null, photos: [], stats: [], failures: [] }
   let names: string[]
   try {
     names = await readdir(outDir)
@@ -200,7 +214,10 @@ export async function syncCirclePhotos(
   iconCell: string | undefined,
   photoCell: string | undefined,
   publicDir: string,
+  /** 取得の差し替え口。テストから1枚だけ失敗させるために使う */
+  deps: { download?: (auth: Auth, fileId: string) => Promise<Buffer> } = {},
 ): Promise<CirclePhotos> {
+  const download = deps.download ?? downloadFile
   const outDir = path.join(publicDir, 'circles', slug)
 
   const iconIds = parseDriveCell(iconCell)
@@ -239,21 +256,35 @@ export async function syncCirclePhotos(
   const result = await existingFiles(outDir, slug)
 
   // --- アイコン: 正方形 ---
+  const failures: PhotoFailure[] = []
   const iconId = iconIds[0]
   if (iconId) {
     const abs = path.join(outDir, 'icon.webp')
-    next['icon'] = iconId
-    if (prev['icon'] !== iconId || !(await exists(abs))) {
-      const raw = await downloadFile(auth, iconId)
-      const out = await processImage(raw, {
-        width: ICON.size,
-        height: ICON.size,
-        quality: ICON.quality,
+    try {
+      if (prev['icon'] !== iconId || !(await exists(abs))) {
+        const raw = await download(auth, iconId)
+        const out = await processImage(raw, {
+          width: ICON.size,
+          height: ICON.size,
+          quality: ICON.quality,
+        })
+        await writeFile(abs, out.data)
+        nextStats['icon.webp'] = { mean: out.mean, brightness: out.brightness }
+      }
+      next['icon'] = iconId
+      result.icon = `/circles/${slug}/icon.webp`
+    } catch (error) {
+      failures.push({
+        name: 'icon.webp',
+        fileId: iconId,
+        message: error instanceof Error ? error.message : String(error),
       })
-      await writeFile(abs, out.data)
-      nextStats['icon.webp'] = { mean: out.mean, brightness: out.brightness }
+      // 前に取り込んだものが残っていれば、それを使い続ける
+      if (await exists(abs)) {
+        if (prev['icon']) next['icon'] = prev['icon']
+        result.icon = `/circles/${slug}/icon.webp`
+      }
     }
-    result.icon = `/circles/${slug}/icon.webp`
   }
 
   // --- 写真: 詳細ページのカルーセル。3:2 ---
@@ -262,14 +293,27 @@ export async function syncCirclePhotos(
     for (const [i, id] of photoIds.entries()) {
       const name = `${String(i + 1).padStart(2, '0')}.webp`
       const abs = path.join(outDir, name)
-      next[name] = id
-      if (prev[name] !== id || !(await exists(abs))) {
-        const raw = await downloadFile(auth, id)
-        const out = await processImage(raw, PHOTO)
-        await writeFile(abs, out.data)
-        nextStats[name] = { mean: out.mean, brightness: out.brightness }
+      try {
+        if (prev[name] !== id || !(await exists(abs))) {
+          const raw = await download(auth, id)
+          const out = await processImage(raw, PHOTO)
+          await writeFile(abs, out.data)
+          nextStats[name] = { mean: out.mean, brightness: out.brightness }
+        }
+        next[name] = id
+        paths.push(`/circles/${slug}/${name}`)
+      } catch (error) {
+        // この1枚だけ諦める。番号は詰めない（他の写真の並びを動かさないため）
+        failures.push({
+          name,
+          fileId: id,
+          message: error instanceof Error ? error.message : String(error),
+        })
+        if (await exists(abs)) {
+          if (prev[name]) next[name] = prev[name]
+          paths.push(`/circles/${slug}/${name}`)
+        }
       }
-      paths.push(`/circles/${slug}/${name}`)
     }
     // 枚数が減った場合でも、既存ファイルは消さずに残す。
     // 表示に使うのはスプレッドシートにある分だけ。
@@ -283,10 +327,14 @@ export async function syncCirclePhotos(
   // 明るさの記録も同じ。読み直さなかった画像は前回の値を引き継ぐ
   const mergedStats = { ...prevStats, ...nextStats }
 
-  await writeFile(
-    manifestPath,
-    JSON.stringify({ v: PROCESS_VERSION, files: next, stats: mergedStats }, null, 2),
-  )
+  // 1枚も取り込めなかった回に空の manifest を置かない
+  if (Object.keys(next).length > 0 || Object.keys(mergedStats).length > 0) {
+    await writeFile(
+      manifestPath,
+      JSON.stringify({ v: PROCESS_VERSION, files: next, stats: mergedStats }, null, 2),
+    )
+  }
   result.stats = statsFor(result, mergedStats)
+  result.failures = failures
   return result
 }
