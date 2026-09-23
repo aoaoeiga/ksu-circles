@@ -12,6 +12,7 @@
 import { google } from 'googleapis'
 import type { GoogleAuth, JWT } from 'google-auth-library'
 import sharp from 'sharp'
+import heicConvert from 'heic-convert'
 import { mkdir, writeFile, readFile, readdir, access } from 'node:fs/promises'
 import path from 'node:path'
 
@@ -24,7 +25,7 @@ const FILE_ID_RE = /[-\w]{25,}/
  * 画像処理の設定を変えたらこの数字を上げる。
  * manifest に記録され、値が変わっていれば同じファイルでも作り直す。
  */
-const PROCESS_VERSION = 2
+const PROCESS_VERSION = 3
 
 const ICON = {
   size: 640,
@@ -121,6 +122,43 @@ async function downloadFile(auth: Auth, fileId: string): Promise<Buffer> {
 }
 
 /**
+ * HEVC で圧縮された HEIF（iPhone の .HEIC）か。**拡張子ではなく中身で見る。**
+ * フォームのアップロードは名前が .JPG でも中身が HEIC のことがあり、逆もある。
+ *
+ * 先頭の ftyp ボックスのブランド（主＋互換）に HEVC 系があれば true。
+ * AVIF（av01）は sharp が自前で読めるので対象外。
+ */
+const HEVC_BRANDS = new Set(['heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'hevm', 'hevs'])
+
+export function isHevcHeif(buf: Uint8Array): boolean {
+  if (buf.length < 16) return false
+  const ascii = (from: number) => String.fromCharCode(...buf.subarray(from, from + 4))
+  if (ascii(4) !== 'ftyp') return false
+  const boxSize = new DataView(buf.buffer, buf.byteOffset, buf.byteLength).getUint32(0)
+  const end = Math.min(boxSize, buf.length)
+  // 8: 主ブランド / 12: マイナーバージョン / 16〜: 互換ブランド
+  const brands = [ascii(8)]
+  for (let at = 16; at + 4 <= end; at += 4) brands.push(ascii(at))
+  return brands.some((brand) => HEVC_BRANDS.has(brand))
+}
+
+/**
+ * sharp が読める形にそろえる。
+ * sharp 同梱の libvips は HEVC のデコーダを持たない（ヘッダは読めるが画素で落ちる）ので、
+ * HEIC だけ先に JPEG へ変換する。向きは libheif が画素に焼き込むので EXIF は要らない。
+ */
+async function toDecodable(buf: Buffer): Promise<Buffer> {
+  if (!isHevcHeif(buf)) return buf
+  try {
+    const jpeg = await heicConvert({ buffer: buf, format: 'JPEG', quality: 1 })
+    return Buffer.from(jpeg)
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    throw new Error(`HEIC を JPEG に変換できませんでした（${reason}）`)
+  }
+}
+
+/**
  * 平均輝度を測って、暗い写真にだけ明るさ補正をかける。
  * 既に明るい写真には 1.0（無補正）を返す。
  */
@@ -143,17 +181,44 @@ async function brightnessFor(
   }
 }
 
+/**
+ * 幅 width × 高さ height の画像から、縦横比 ratio の最大の領域を中央で取る。
+ * 端数は切り捨てる（はみ出すと extract が落ちる）
+ */
+export function centerCrop(
+  width: number,
+  height: number,
+  ratio: number,
+): { left: number; top: number; width: number; height: number } {
+  const w = Math.min(width, Math.floor(height * ratio))
+  const h = Math.min(height, Math.floor(w / ratio))
+  return {
+    left: Math.floor((width - w) / 2),
+    top: Math.floor((height - h) / 2),
+    width: w,
+    height: h,
+  }
+}
+
 async function processImage(
   buf: Buffer,
   opts: { width: number; height: number; quality: number },
 ): Promise<{ data: Buffer; mean: number | null; brightness: number }> {
+  buf = await toDecodable(buf)
   const { mean, brightness } = await brightnessFor(buf)
 
+  // 先に中央で目標の縦横比に切り抜いてから縮める。
+  // cover と withoutEnlargement を併用すると、元が小さい写真は切り抜きが効かず
+  // 比率が崩れる（1108×1067 のような正方形に近いものが出ていた）。
+  // **幅が足りなくても比率を守るのを優先する。**拡大はしない
+  const meta = await sharp(buf).metadata()
+  const crop = centerCrop(meta.autoOrient.width, meta.autoOrient.height, opts.width / opts.height)
+
   const data = await sharp(buf)
-    .rotate() // EXIFの向きを反映（スマホ写真が横倒しになるのを防ぐ）
+    .rotate() // EXIFの向きを反映（スマホ写真が横倒しになるのを防ぐ）。extract より前に呼ぶ
+    .extract(crop)
     .resize(opts.width, opts.height, {
-      fit: 'cover',
-      position: sharp.strategy.attention,
+      fit: 'fill', // 比率は extract で合わせ済み。丸めの1px差で切り落とさない
       withoutEnlargement: true, // 元が小さい写真を無理に拡大しない
     })
     .modulate({

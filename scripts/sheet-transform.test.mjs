@@ -8,7 +8,7 @@ import { mkdirSync } from "node:fs";
 import sharp from "sharp";
 import { readPhotoSources, transformSheets } from "./sheet-transform.ts";
 import { mergePhotoSources, scanPhotos } from "./photo-index.ts";
-import { parseDriveCell, syncCirclePhotos } from "./photos.ts";
+import { centerCrop, isHevcHeif, parseDriveCell, syncCirclePhotos } from "./photos.ts";
 
 const fixture = JSON.parse(
   readFileSync(new URL("./fixtures/sheet-sample.json", import.meta.url), "utf8")
@@ -315,5 +315,83 @@ test("フィクスチャでB-3の警告経路を通す", () => {
     "tile_size が S/M/L でない（\"XL\" → \"M\"）"
   ]) {
     assert.ok(messages.includes(expected), `警告がない: ${expected}`);
+  }
+});
+
+test("isHevcHeif: 拡張子ではなく ftyp のブランドで HEIC を見分ける", async () => {
+  // ftyp ボックス: [サイズ4][ftyp][主ブランド4][マイナー4][互換ブランド…]
+  const ftyp = (major, ...compatible) => {
+    const size = 16 + compatible.length * 4;
+    const buf = Buffer.alloc(size);
+    buf.writeUInt32BE(size, 0);
+    buf.write("ftyp", 4, "ascii");
+    buf.write(major, 8, "ascii");
+    compatible.forEach((brand, i) => buf.write(brand, 16 + i * 4, "ascii"));
+    return buf;
+  };
+  // iPhone の .HEIC（c056 の4枚目と同じ並び）
+  assert.equal(isHevcHeif(ftyp("heic", "mif1", "MiHB", "MiHA", "heix")), true);
+  // 主ブランドが mif1 でも、互換に heic があれば HEIC
+  assert.equal(isHevcHeif(ftyp("mif1", "heic")), true);
+  // AVIF は sharp が読めるので変換しない
+  assert.equal(isHevcHeif(ftyp("avif", "mif1", "miaf")), false);
+  // JPEG / PNG / 短すぎるもの
+  const jpeg = await sharp({ create: { width: 4, height: 4, channels: 3, background: "#888" } }).jpeg().toBuffer();
+  const png = await sharp({ create: { width: 4, height: 4, channels: 3, background: "#888" } }).png().toBuffer();
+  assert.equal(isHevcHeif(jpeg), false);
+  assert.equal(isHevcHeif(png), false);
+  assert.equal(isHevcHeif(Buffer.from("ftyp")), false);
+});
+
+test("centerCrop: 中央で最大の領域を取り、はみ出さない", () => {
+  assert.deepEqual(centerCrop(1600, 1600, 1.5), { left: 0, top: 267, width: 1600, height: 1066 });
+  assert.deepEqual(centerCrop(3000, 1000, 1.5), { left: 750, top: 0, width: 1500, height: 1000 });
+  assert.deepEqual(centerCrop(640, 640, 1), { left: 0, top: 0, width: 640, height: 640 });
+});
+
+test("写真は元の大きさに関わらず 3:2、アイコンは 1:1 で出す（小さい元は拡大しない）", async () => {
+  const root = mkdtempSync(join(tmpdir(), "ksu-ratio-"));
+  // [元の幅, 高さ, EXIF の向き]。向き6は縦位置のスマホ写真（保存は横、表示は縦）
+  const sources = [
+    [1477, 1108], // c056/01 の元と同じ。以前は 1477×1067 に崩れていた
+    [1108, 1477], // 縦長で幅が 1600 未満
+    [800, 300], // 横に長い小さな画像
+    [4000, 3000], // 大きい画像は 1600×1067 まで縮める
+    [1200, 900, 6], // 表示は 900×1200。横倒しのまま切り抜くと 3:2 の枠がはみ出す
+  ];
+  const images = await Promise.all(
+    sources.map(([width, height, orientation]) => {
+      const img = sharp({ create: { width, height, channels: 3, background: "#777" } }).jpeg();
+      return (orientation ? img.withMetadata({ orientation }) : img).toBuffer();
+    })
+  );
+  const ids = sources.map((_, i) => `1RATIO${i}`.padEnd(33, "x"));
+  const cell = ids.map((id) => `https://drive.google.com/open?id=${id}`).join(", ");
+  const iconId = "1ICON".padEnd(33, "x");
+  try {
+    await syncCirclePhotos(null, "c900", `https://drive.google.com/open?id=${iconId}`, cell, root, {
+      download: async (_auth, fileId) => (fileId === iconId ? images[2] : images[ids.indexOf(fileId)]),
+    });
+    const dir = join(root, "circles", "c900");
+    const size = async (name) => {
+      const { width, height } = await sharp(join(dir, name)).metadata();
+      return { width, height, ratio: width / height };
+    };
+    for (const [i, [w, h, orientation]] of sources.entries()) {
+      const got = await size(`0${i + 1}.webp`);
+      const label = `${w}×${h}${orientation ? `（向き${orientation}）` : ""} → ${got.width}×${got.height}`;
+      assert.ok(Math.abs(got.ratio - 1.5) < 0.01, `3:2 になっていない: ${label}`);
+      assert.ok(got.width <= 1600, `1600 を超えている: ${label}`);
+      const shownWidth = orientation >= 5 ? h : w;
+      assert.ok(got.width <= shownWidth, `拡大している: ${label}`);
+    }
+    // 大きい元は上限まで縮める
+    assert.deepEqual(await size("04.webp"), { width: 1600, height: 1067, ratio: 1600 / 1067 });
+    // 向き6（縦位置）は表示の向きで切り抜く: 900×1200 → 900×600
+    assert.deepEqual(await size("05.webp"), { width: 900, height: 600, ratio: 1.5 });
+    const icon = await size("icon.webp");
+    assert.equal(icon.width, icon.height, "アイコンが正方形でない");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });
