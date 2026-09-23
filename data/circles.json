@@ -2,6 +2,82 @@
   "_note": "npm run sync が生成した中間生成物。原本は掲載データ＋団体マスタ。手で編集しない（CLAUDE.md §1）。photos / icon は public/circles（シートの写真_元から取得）と public/photos（以前に手で置いたもの）の実ファイル。",
   "circles": [
     {
+      "id": "c014",
+      "short_name": "神山ポケモンサークル",
+      "name": "届出団体神山ポケモンサークル",
+      "division": "その他",
+      "category": "届出団体",
+      "genre": "その他",
+      "one_liner": "みんなで、ポケモン。",
+      "active_days": [],
+      "days_undecided": true,
+      "frequency": "1",
+      "place": "11号館",
+      "annual_fee": 500,
+      "member_count": 115,
+      "beginner_count": 60,
+      "first_year_count": 0,
+      "male_ratio": 80,
+      "ease": "大丈夫",
+      "senior_call": "個人による",
+      "multi_club": "いる",
+      "description": "Nintendo Switch（最近はスマホも）のゲーム版ポケモンで、部内戦の企画をしています。\nポケモンカードゲームを使った部内戦の企画もあります。\n自由活動の時間には、ボードゲームやほかのゲーム、カードゲームで遊ぶこともあります。",
+      "leader_comment": {
+        "text": "初心者未経験者も大歓迎！みんなで楽しみましょう！",
+        "role": "主将"
+      },
+      "recruiting": "いつでも入れる",
+      "surveyed_at": "2026-09-20",
+      "sns": {
+        "instagram": null,
+        "x": null,
+        "website": "http://kouyamapokecir.blog.fc2.com/"
+      },
+      "icon": null,
+      "photos": [],
+      "tile_size": "M",
+      "listed": false
+    },
+    {
+      "id": "c047",
+      "short_name": "プレゼン研究会〈PSGグループ〉",
+      "name": "プレゼン研究会〈PSGグループ〉",
+      "division": "その他",
+      "category": "届出団体",
+      "genre": "その他",
+      "one_liner": "一人前のプレゼンターへ。",
+      "active_days": [
+        2
+      ],
+      "days_undecided": false,
+      "frequency": null,
+      "place": "サギたりウスカン",
+      "annual_fee": 2000,
+      "member_count": 37,
+      "beginner_count": 37,
+      "first_year_count": null,
+      "male_ratio": 80,
+      "ease": null,
+      "senior_call": null,
+      "multi_club": null,
+      "description": "プレゼンを学術的に学ぶことと、実際に登壇して練習することの両方に取り組んでいます。\n集めたデータを活用して指導しています。\nごまかすような伝え方ではなく、誠実に伝える力を育てることを目的にしています。\n活動は水曜日の3・4限です。",
+      "leader_comment": {
+        "text": "プレゼン力を上げていき、理由　いいことを持っている　掛け合わせて伝える力　十を作りdして１００で伝える　ファンが作る　一歩目が大事まずはプレ件の人に声かけてください　そうすると近づきたいと思う人に出会えるはずです",
+        "role": "代表"
+      },
+      "recruiting": "いつでも入れる",
+      "surveyed_at": "2026-08-31",
+      "sns": {
+        "instagram": "https://www.instagram.com/presen_2026_shinkan/?hl=ja",
+        "x": null,
+        "website": null
+      },
+      "icon": null,
+      "photos": [],
+      "tile_size": "M",
+      "listed": false
+    },
+    {
       "id": "c054",
       "short_name": "ゆとらん",
       "name": "陸上競技同好会　ゆとらん",
@@ -45,7 +121,47 @@
         "/circles/c054/04.webp",
         "/circles/c054/05.webp"
       ],
-      "tile_size": "L"
+      "tile_size": "L",
+      "listed": true
+    },
+    {
+      "id": "c055",
+      "short_name": "卓球サークルSpinArt！",
+      "name": "SpinArt",
+      "division": "その他",
+      "category": "届出団体",
+      "genre": "球技",
+      "one_liner": "卓球は、トレンド入り。",
+      "active_days": [],
+      "days_undecided": true,
+      "frequency": "2",
+      "place": "宝ヶ池体育館、左京区地域体育館、北大路文化会館",
+      "annual_fee": 11000,
+      "member_count": 40,
+      "beginner_count": 8,
+      "first_year_count": 15,
+      "male_ratio": 80,
+      "ease": "大丈夫",
+      "senior_call": "個人による",
+      "multi_club": "いる",
+      "description": "活動の中心は卓球です。\n経験者も初心者も、教え合いながら練習しています。\nときどき卓球以外のレクリエーションや、ご飯会も開いています。",
+      "leader_comment": {
+        "text": "1番楽しい自信あります！",
+        "role": "主務（2年）"
+      },
+      "recruiting": "いつでも入れる",
+      "surveyed_at": "2026-09-23",
+      "sns": {
+        "instagram": null,
+        "x": null,
+        "website": null
+      },
+      "icon": "/circles/c055/icon.webp",
+      "photos": [
+        "/circles/c055/01.webp"
+      ],
+      "tile_size": "M",
+      "listed": false
     },
     {
       "id": "c056",
@@ -86,7 +202,8 @@
         "/circles/c056/03.webp",
         "/circles/c056/04.webp"
       ],
-      "tile_size": "M"
+      "tile_size": "M",
+      "listed": true
     },
     {
       "id": "c058",
@@ -131,7 +248,8 @@
         "/circles/c058/02.webp",
         "/circles/c058/03.webp"
       ],
-      "tile_size": "M"
+      "tile_size": "M",
+      "listed": true
     }
   ]
 }
