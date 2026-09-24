@@ -1,0 +1,13 @@
+{
+  "v": 4,
+  "files": {},
+  "stats": {},
+  "local": {
+    "note": "Drive を通さず、運営が手元で処理した写真（~/Downloads/photos-c047.zip、3:2 / WebP 品質82 / EXIF削除 / 拡大なし）をそのまま置いた（2026-09-24）。sharp は通し直していない。明るさ補正の記録は無い。6枚目（縦位置の交流会）は05と重なるので元から外されている",
+    "01.webp": "photos-c047.zip / 集合写真（PRESENTATION のロゴ入り）",
+    "02.webp": "photos-c047.zip / 関西学生団体AWARD2025 学生団体大賞の受賞",
+    "03.webp": "photos-c047.zip / ホワイトボードを使った勉強会",
+    "04.webp": "photos-c047.zip / 予選大振り返り会（他団体との合同）",
+    "05.webp": "photos-c047.zip / お菓子を囲んだ交流会"
+  }
+}
