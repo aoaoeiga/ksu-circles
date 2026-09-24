@@ -1,0 +1,37 @@
+{
+  "v": 4,
+  "files": {
+    "icon": "1e8WaFmB3yVpBDJhWGSRYTcQDeHWUvxvD",
+    "01.webp": "1lcmamA10fXzbLkV0I7wFAbUcdgP_4Nx3",
+    "02.webp": "1DSMSXoY7whZki6m8RilSrIaXLzPuSfP_",
+    "03.webp": "1fCU5L1mKWOy9YH3J_Wkq3_c9GHRsol7b",
+    "04.webp": "14wo-rwXcTLabmX7a-FvlHN5YhHdlNrbn"
+  },
+  "stats": {
+    "icon.webp": {
+      "mean": 128.24706827113036,
+      "brightness": 1,
+      "gamma": 1
+    },
+    "01.webp": {
+      "mean": 104.86094030690812,
+      "brightness": 1.1443727249515665,
+      "gamma": 0.8482418064635076
+    },
+    "02.webp": {
+      "mean": 130.5632471560057,
+      "brightness": 1,
+      "gamma": 1
+    },
+    "03.webp": {
+      "mean": 93.2594108459679,
+      "brightness": 1.15,
+      "gamma": 0.8610548565333848
+    },
+    "04.webp": {
+      "mean": 98.78808721291655,
+      "brightness": 1.15,
+      "gamma": 0.852616335814631
+    }
+  }
+}
