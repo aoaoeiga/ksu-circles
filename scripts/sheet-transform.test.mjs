@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
 import sharp from "sharp";
-import { readPhotoSources, transformSheets } from "./sheet-transform.ts";
+import { findLeftoverNotes, readPhotoSources, transformSheets } from "./sheet-transform.ts";
 import { mergePhotoSources, scanPhotos } from "./photo-index.ts";
 import { centerCrop, isHevcHeif, parseDriveCell, syncCirclePhotos, toneFor } from "./photos.ts";
 
@@ -465,4 +465,54 @@ test("役職: 主務や「2回生」の書き方を、個人名と取り違え�
   assert.deepEqual(roleOf("代表（3年）"), ["代表（3年）", false]);
   // 個人名が入っていれば、これまでどおり置き換えて知らせる
   assert.deepEqual(roleOf("主務 架空花子 2回生"), ["主務（2年）", true]);
+});
+
+test("Instagram・X にアカウント名だけが入っていたら URL に直して読む", () => {
+  const header = fixture.掲載データ[0];
+  const snsOf = (instagram, x) => {
+    const input = structuredClone(fixture);
+    input.掲載データ[1][header.indexOf("Instagram")] = instagram;
+    input.掲載データ[1][header.indexOf("X")] = x;
+    const result = transformSheets(input, { now });
+    const warned = result.warnings.some((w) => w.id === "c901" && /URL形式でない/.test(w.message));
+    const { instagram: ig, x: tw } = result.circles[0].sns;
+    return [ig, tw, warned];
+  };
+  assert.deepEqual(snsOf("kouyama_pkmn", "@kouyama_pkmn"), [
+    "https://www.instagram.com/kouyama_pkmn/", "https://x.com/kouyama_pkmn", false,
+  ]);
+  assert.deepEqual(snsOf("@ksu.spin_art", "ksu_spin"), [
+    "https://www.instagram.com/ksu.spin_art/", "https://x.com/ksu_spin", false,
+  ]);
+  // URL はそのまま
+  assert.deepEqual(snsOf("https://www.instagram.com/presen/?hl=ja", "https://x.com/a"), [
+    "https://www.instagram.com/presen/?hl=ja", "https://x.com/a", false,
+  ]);
+  // アカウント名にも URL にも見えないものは、これまでどおり捨てて知らせる
+  assert.deepEqual(snsOf("URLではない", "x.com なし"), [null, null, true]);
+});
+
+test("findLeftoverNotes: 公開する文章に残った【要確認】【TODO】を見つける", () => {
+  const input = structuredClone(fixture);
+  const header = input.掲載データ[0];
+  input.掲載データ[1][header.indexOf("紹介文")] =
+    "架空の紹介文1行目\n月1回集まります。【要確認：普段の活動】\n架空の紹介文3行目";
+  input.掲載データ[1][header.indexOf("代表からの一言")] = "一緒に楽しみましょう。【TODO】";
+  const { circles } = transformSheets(input, { now });
+  const found = findLeftoverNotes(circles);
+  assert.deepEqual(found.map((f) => [f.id, f.field]), [
+    ["c901", "description"],
+    ["c901", "leader_comment.text"],
+  ]);
+  assert.match(found[0].text, /^【要確認：普段の活動】/);
+  // 全角・半角の角括弧、小文字の todo も拾う
+  for (const note of ["［要確認］", "[todo] あとで", "【 仮 】"]) {
+    const other = structuredClone(circles);
+    other[0].place = `第1体育館${note}`;
+    assert.ok(findLeftoverNotes(other).some((f) => f.field === "place"), note);
+  }
+  // 覚え書きでない【】は止めない
+  const plain = structuredClone(transformSheets(fixture, { now }).circles);
+  plain[0].description = "【新歓】4月に体験会があります。";
+  assert.deepEqual(findLeftoverNotes(plain), []);
 });

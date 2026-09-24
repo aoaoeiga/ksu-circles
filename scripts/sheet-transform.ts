@@ -208,6 +208,48 @@ function cleanRole(raw: string | null, warn: (message: string) => void): string 
   return rebuilt;
 }
 
+/**
+ * フォームの Instagram・X 欄には、URL ではなくアカウント名（@ の有無どちらも）が入ることがある。
+ * アカウント名の形なら URL に直して読む。それ以外の形は urlOrNull が警告して捨てる
+ */
+function snsUrl(raw: string | null, service: "instagram" | "x"): string | null {
+  if (!raw) return null;
+  const handle = raw.trim().replace(/^[@＠]/, "");
+  if (service === "instagram" && /^[A-Za-z0-9._]{1,30}$/.test(handle)) {
+    return `https://www.instagram.com/${handle}/`;
+  }
+  if (service === "x" && /^[A-Za-z0-9_]{1,15}$/.test(handle)) return `https://x.com/${handle}`;
+  return raw;
+}
+
+/**
+ * 公開する文章に残った覚え書き（【要確認：…】【TODO】など）を探す。
+ * 聞き取りの途中で原稿に書いた印で、残ったまま公開すると読者にそのまま見える。
+ * sync はこれが1件でもあれば止まる（circles.json を書かない）
+ */
+const LEFTOVER_NOTE = /[【［[]\s*(?:要確認|確認中|未確認|要追記|仮|TODO|FIXME|TBD)/gi;
+
+export function findLeftoverNotes(
+  circles: Circle[],
+): { id: string; field: string; text: string }[] {
+  const found: { id: string; field: string; text: string }[] = [];
+  const walk = (id: string, field: string, value: unknown) => {
+    if (typeof value === "string") {
+      // 1つの欄に複数残っていることがあるので、全部出す
+      for (const hit of value.matchAll(LEFTOVER_NOTE)) {
+        const text = value.slice(hit.index, hit.index + 40).replace(/\s*\n\s*/g, " ⏎ ");
+        found.push({ id, field, text });
+      }
+    } else if (Array.isArray(value)) {
+      value.forEach((item, i) => walk(id, `${field}[${i}]`, item));
+    } else if (value && typeof value === "object") {
+      for (const [key, inner] of Object.entries(value)) walk(id, field ? `${field}.${key}` : key, inner);
+    }
+  };
+  for (const circle of circles) walk(circle.id, "", circle);
+  return found;
+}
+
 function urlOrNull(raw: string | null, label: string, warn: (message: string) => void): string | null {
   if (!raw) return null;
   if (/^https?:\/\/\S+$/i.test(raw)) return raw;
@@ -450,8 +492,8 @@ export function transformSheets(input: SheetInput, options: TransformOptions = {
       recruiting: normalizeRecruiting(text(get("recruiting")), warn),
       surveyed_at: surveyedAt,
       sns: {
-        instagram: urlOrNull(text(get("instagram")), "Instagram", warn),
-        x: urlOrNull(text(get("x")), "X", warn),
+        instagram: urlOrNull(snsUrl(text(get("instagram")), "instagram"), "Instagram", warn),
+        x: urlOrNull(snsUrl(text(get("x")), "x"), "X", warn),
         website: urlOrNull(text(get("website")), "公式サイト", warn),
       },
       icon,

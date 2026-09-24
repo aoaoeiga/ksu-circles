@@ -16,6 +16,7 @@ import { createInterface } from "node:readline/promises";
 import { GoogleAuth, Impersonated, JWT, type AuthClient } from "google-auth-library";
 import type { Circle, CircleFile } from "../types/circle.ts";
 import {
+  findLeftoverNotes,
   readPhotoSources,
   transformSheets,
   type PhotoSourceCells,
@@ -443,6 +444,17 @@ async function main(): Promise<void> {
   writeFileSync(OUT_REPORT, report, "utf8");
   console.log(report);
   console.log(`レポート: ${OUT_REPORT}`);
+
+  // 原稿に残った覚え書きは、公開する前に必ず止める。circles.json は書かない
+  const leftovers = findLeftoverNotes(result.circles);
+  if (leftovers.length > 0) {
+    throw new Error(
+      [
+        "公開する団体の文章に覚え書き（【要確認】【TODO】など）が残っています。シートを直してから回してください:",
+        ...leftovers.map((l) => `  ${l.id}  ${l.field}: ${l.text}`),
+      ].join("\n")
+    );
+  }
 
   const payload: CircleFile = {
     _note:
