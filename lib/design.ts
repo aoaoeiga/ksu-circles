@@ -38,6 +38,8 @@ export const GENRE_COLORS: Record<Genre, string> = {
   音楽: "#3A55A8",
   "文化・創作": "#6E4A8E",
   ボランティア: "#147C86",
+  "学術・ビジネス": "#46526E",
+  運動: "#7E5546",
   その他: "#6B665E",
 };
 
@@ -60,6 +62,8 @@ export const GENRES: Genre[] = [
   "音楽",
   "文化・創作",
   "ボランティア",
+  "学術・ビジネス",
+  "運動",
   "その他",
 ];
 
@@ -186,9 +190,13 @@ export const SECTION_TITLE: CSSProperties = {
  * 写真のパス。photos は幅1200と @600、icon は幅400の1枚だけを置く。
  * 一覧のサムネは photos のみ @600 を使う（docs/10-sync-spec.md §5-1）。
  */
-export function photoSrc(filename: string, size: "full" | "thumb" = "full"): string {
-  if (size === "thumb" && !/-icon\.webp$/.test(filename)) {
-    return "/photos/" + filename.replace(/\.webp$/, "@600.webp");
+export function photoSrc(file: string, size: "full" | "thumb" = "full"): string {
+  // 新しい写真（scripts/photos.ts が public/circles/<団体ID>/ に置く）は
+  // "/circles/c056/01.webp" の形で来る。幅600の版は作らないのでそのまま返す。
+  if (file.startsWith("/")) return file;
+  // 旧来の public/photos に手で置いたファイルは、ファイル名だけが入っている
+  if (size === "thumb" && !/-icon\.webp$/.test(file)) {
+    return "/photos/" + file.replace(/\.webp$/, "@600.webp");
   }
-  return "/photos/" + filename;
+  return "/photos/" + file;
 }

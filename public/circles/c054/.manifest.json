@@ -1,0 +1,13 @@
+{
+  "v": 3,
+  "files": {},
+  "stats": {},
+  "local": {
+    "note": "Drive に元の写真が無いため、public/photos に手で置いていたものをそのままコピーした（2026-09-24）。sharp は通し直していない。6枚目（c054-6.webp）は入れていない",
+    "01.webp": "public/photos/c054-1.webp",
+    "02.webp": "public/photos/c054-2.webp",
+    "03.webp": "public/photos/c054-3.webp",
+    "04.webp": "public/photos/c054-4.webp",
+    "05.webp": "public/photos/c054-5.webp"
+  }
+}

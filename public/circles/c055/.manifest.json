@@ -1,0 +1,19 @@
+{
+  "v": 4,
+  "files": {
+    "icon": "1_gcLApIhNXwXhtYeodcOdFcfi0Mdf-BO",
+    "01.webp": "1nllbzWBeot8vwY5Evl3tn-TfIcM1wQRN"
+  },
+  "stats": {
+    "icon.webp": {
+      "mean": 67.28380880973793,
+      "brightness": 1.15,
+      "gamma": 0.8951007016275149
+    },
+    "01.webp": {
+      "mean": 149.74110339802027,
+      "brightness": 1,
+      "gamma": 1
+    }
+  }
+}

@@ -1,12 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { BG } from "@/lib/design";
-import { ALLOW_INDEXING } from "@/lib/seo";
-
-const deploymentHost = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
+import { ALLOW_INDEXING, siteOrigin } from "@/lib/seo";
+import RouteMotion from "@/components/RouteMotion";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(deploymentHost ? `https://${deploymentHost}` : "http://localhost:3000"),
+  // OGP などの相対 URL の起点。本番は本番の URL、preview はそのデプロイ自身（lib/seo.ts）
+  metadataBase: new URL(siteOrigin()),
   title: "京産大サークル名鑑",
   description: "京都産業大学の課外活動団体を、同じ項目で横断して比べられる名鑑。",
 
@@ -67,7 +67,7 @@ export default function RootLayout({
               position: "relative",
             }}
           >
-            {children}
+            <RouteMotion>{children}</RouteMotion>
           </div>
         </div>
       </body>

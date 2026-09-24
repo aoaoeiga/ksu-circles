@@ -1,26 +1,51 @@
 // 掲載データ＋団体マスタ → data/circles.json
-// 変換規則は scripts/sheet-transform.ts、写真の走査は scripts/photo-index.ts に分離し、
-// このファイルは Google API とファイルI/Oだけを担う。
+// 変換規則は scripts/sheet-transform.ts に分離し、このファイルは Google API と
+// ファイルI/Oだけを担う。
 //
-// sync は画像を変換しない（docs/10-sync-spec.md §7）。public/photos を走査して数えるだけ。
+// 写真の置き場所は2系統ある。**どちらも消さずに、新しいほうを優先して使う。**
+//
+//   public/circles/<団体ID>/   シートの「写真_元」（Drive URL）から scripts/photos.ts が作る。いま正
+//   public/photos/             以前に手で置いたもの。シートに Drive URL が無い団体はこちらを使い続ける
+//
+// 後者を切ると、まだシートに写真を入れていない団体（c054 など）が
+// サイトから消える。**古いほうは残して保険にする。**
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import sharp from "sharp";
 import { createInterface } from "node:readline/promises";
 import { GoogleAuth, Impersonated, JWT, type AuthClient } from "google-auth-library";
 import type { Circle, CircleFile } from "../types/circle.ts";
 import {
+  findLeftoverNotes,
+  readPhotoSources,
   transformSheets,
+  type PhotoSourceCells,
   type SheetInput,
   type SheetValues,
   type SyncWarning,
 } from "./sheet-transform.ts";
-import { scanPhotos, type PhotoIndex } from "./photo-index.ts";
+import { MAX_PHOTOS, mergePhotoSources, scanPhotos, type PhotoIndex } from "./photo-index.ts";
+import {
+  parseDriveCell,
+  syncCirclePhotos,
+  type CirclePhotos,
+  type PhotoStat,
+} from "./photos.ts";
 
 const OUT_JSON = "data/circles.json";
 const OUT_REPORT = "data/report.md";
+const PUBLIC_DIR = "public";
+/** 以前に手で置いた写真。シートに Drive URL が無い団体はここを使う */
 const PHOTO_DIR = "public/photos";
+/** scripts/photos.ts が Drive から作る写真 */
+const CIRCLE_DIR = "public/circles";
 const MASTER_SHEET_NAME = "団体マスタ";
-const SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"];
+const SCOPES = [
+  "https://www.googleapis.com/auth/spreadsheets.readonly",
+  // 「写真_元」の Drive ファイルを落とすため。シート読み取りと同じ認証を使い回す
+  "https://www.googleapis.com/auth/drive.readonly",
+];
 
 const args = process.argv.slice(2);
 const hasFlag = (name: string) => args.includes(`--${name}`);
@@ -116,13 +141,196 @@ async function fetchSheetNames(auth: AuthClient, sheetId: string): Promise<strin
     .filter(Boolean);
 }
 
+type Resolved = {
+  icon: string | null;
+  photos: string[];
+  warnings: string[];
+  /** 明るさ補正の記録。data/report.md に出す */
+  stats: PhotoStat[];
+};
+
+/**
+ * 聞き取りメモに紛れている Drive のURLを拾う。
+ * 移行中のメモに「写真4枚目以降=…」「写真フォルダ=…」の形で書かれていることがある。
+ */
+function driveLinksIn(memo: string | null): { url: string; id: string; isFolder: boolean }[] {
+  if (!memo) return [];
+  const found: { url: string; id: string; isFolder: boolean }[] = [];
+  for (const raw of memo.match(/https?:\/\/drive\.google\.com\/\S+/g) ?? []) {
+    // 行末の句読点や閉じ括弧はURLに含めない
+    const url = raw.replace(/[)\]}、。，,.]+$/u, "");
+    const id = url.match(/[-\w]{25,}/)?.[0];
+    if (id) found.push({ url, id, isFolder: url.includes("/folders/") });
+  }
+  return found;
+}
+
+/** 写真の取得結果のまとめ。レポートに出す */
+type PhotoSummary = {
+  /** 「写真_元」に Drive URL が入っていた団体数と、その合計件数 */
+  sheetCircles: number;
+  sheetFiles: number;
+  /** アイコン写真_元 が入っていた団体数 */
+  sheetIcons: number;
+  /** public/circles に写真が置かれている団体数 */
+  fetched: number;
+  /** 団体まるごと取得に失敗したもの（認証エラーなど） */
+  failures: { id: string; message: string }[];
+  /** 1枚だけ取り込めなかったもの */
+  fileFailures: { id: string; name: string; fileId: string; message: string }[];
+  /** ディスクにある古いほうの写真を使った団体 */
+  fromLegacy: string[];
+};
+
+/** public/circles/<団体ID>/ に置いてあるものを読む（Drive を叩かない） */
+function scanCircleDir(slug: string): CirclePhotos {
+  const dir = path.join(CIRCLE_DIR, slug);
+  if (!existsSync(dir)) return { icon: null, photos: [], stats: [], failures: [] };
+  const names = readdirSync(dir);
+  const icon = names.includes("icon.webp") ? `/circles/${slug}/icon.webp` : null;
+  const photos = names
+    .filter((n) => /^\d{2}\.webp$/.test(n))
+    .sort()
+    .map((n) => `/circles/${slug}/${n}`);
+
+  // 明るさの記録は取り込み時に manifest へ残してある。手置きの写真には無い
+  let recorded: Record<string, { mean: number | null; brightness: number; gamma?: number }> = {};
+  const manifest = path.join(dir, ".manifest.json");
+  if (existsSync(manifest)) {
+    try {
+      recorded = (JSON.parse(readFileSync(manifest, "utf8")).stats ?? {}) as typeof recorded;
+    } catch {
+      recorded = {};
+    }
+  }
+  const stats = [...(icon ? ["icon.webp"] : []), ...photos.map((p) => path.basename(p))]
+    .filter((name) => recorded[name])
+    .map((name) => ({ name, ...recorded[name] }));
+
+  return { icon, photos, stats, failures: [] };
+}
+
+/**
+ * 団体IDごとの写真を決める。
+ *
+ * **新しいほう（public/circles）を優先し、無ければ古いほう（public/photos）に落とす。**
+ * どちらのファイルも消さない。Drive の取得に失敗しても、ディスクにあるものは出し続ける。
+ */
+/**
+ * OGP に使う画像（写真の1枚目、無ければアイコン）の大きさを測る。
+ * パスは lib/design.ts の photoSrc() と同じ規則で public/ 以下に引き当てる
+ */
+async function measureOgImage(circle: Circle): Promise<Circle["og_image"]> {
+  const file = circle.photos[0] ?? circle.icon;
+  if (!file) return null;
+  const src = file.startsWith("/") ? file : `/photos/${file}`;
+  try {
+    const { width, height } = await sharp(path.join(PUBLIC_DIR, src)).metadata();
+    if (!width || !height) return null;
+    return { src, width, height };
+  } catch {
+    console.warn(`  ${circle.id}  OGP 画像 ${src} の大きさを測れなかった（og:image を出さない）`);
+    return null;
+  }
+}
+
+async function resolvePhotos(
+  auth: AuthClient,
+  sources: Map<string, PhotoSourceCells>,
+  photoIndex: PhotoIndex,
+  summary: PhotoSummary
+): Promise<Map<string, Resolved>> {
+  const resolved = new Map<string, Resolved>();
+
+  for (const [id, cell] of sources) {
+    const iconIds = parseDriveCell(cell.icon);
+    const photoIds = parseDriveCell(cell.photos);
+    if (photoIds.length > 0) {
+      summary.sheetCircles += 1;
+      summary.sheetFiles += photoIds.length;
+    }
+    if (iconIds.length > 0) summary.sheetIcons += 1;
+
+    const warnings: string[] = [];
+    let fresh: CirclePhotos;
+
+    if (DRY_RUN) {
+      // --dry-run では Drive を叩かない。ディスクにあるものだけを見る
+      fresh = scanCircleDir(id);
+    } else {
+      try {
+        fresh = await syncCirclePhotos(
+          // photos.ts の型は GoogleAuth | JWT だが、この sync は Impersonated も使う。
+          // 中で googleapis に渡すだけなので、ここで型を合わせる
+          auth as unknown as JWT,
+          id,
+          cell.icon ?? undefined,
+          cell.photos ?? undefined,
+          PUBLIC_DIR
+        );
+        // 「取り込めた」は、public/circles に実体があることで数える。
+        // 1枚も落とせていないのに成功数に入れると、失敗に気づけない
+        if (fresh.photos.length > 0 || fresh.icon !== null) summary.fetched += 1;
+        // 1枚だけ落ちた分。団体まるごとは失敗させない
+        for (const f of fresh.failures) {
+          summary.fileFailures.push({ id, name: f.name, fileId: f.fileId, message: f.message });
+          warnings.push(`${f.name} を取り込めなかった（${f.fileId}）: ${f.message.split("\n")[0]}`);
+        }
+      } catch (error) {
+        // 落とせなくても、すでにディスクにあるものは出し続ける。
+        // ここで止めると写真がサイトから消える
+        const message = error instanceof Error ? error.message : String(error);
+        summary.failures.push({ id, message });
+        warnings.push(`Drive から写真を取れなかった（${message.split("\n")[0]}）`);
+        fresh = scanCircleDir(id);
+      }
+    }
+
+    // 聞き取りメモに写真のURLが残っていたら、「写真_元」へ移す必要がある
+    const known = new Set([...iconIds, ...photoIds]);
+    for (const link of driveLinksIn(cell.memo)) {
+      if (known.has(link.id)) continue;
+      warnings.push(
+        link.isFolder
+          ? `聞き取りメモに写真フォルダのURLがある。中の写真を「写真_元」に入れる → ${link.url}`
+          : `聞き取りメモに写真のURLがある。「写真_元」の末尾に足す → ${link.url}`
+      );
+    }
+
+    if (photoIds.length > MAX_PHOTOS) {
+      warnings.push(
+        `「写真_元」が${photoIds.length}件。いまのヒーローは${MAX_PHOTOS}枚までなので${photoIds.length - MAX_PHOTOS}件は出さない`
+      );
+    }
+
+    // 新しいほうに何も無ければ、以前 public/photos に置いたものを使う
+    const legacy = photoIndex.byId.get(id);
+    const merged = mergePhotoSources(fresh, legacy);
+    if (merged.usesLegacyPhotos || merged.usesLegacyIcon) {
+      summary.fromLegacy.push(id);
+      legacy?.warnings.forEach((w) => warnings.push(w));
+    }
+
+    resolved.set(id, {
+      icon: merged.icon,
+      photos: merged.photos,
+      warnings,
+      stats: fresh.stats,
+    });
+  }
+
+  return resolved;
+}
+
 function makeReport(
   sourceRows: number,
   circles: Circle[],
   excluded: { id: string; reason: string }[],
   warnings: SyncWarning[],
   missingColumns: string[],
-  photoIndex: PhotoIndex
+  photoIndex: PhotoIndex,
+  summary: PhotoSummary,
+  photos: Map<string, Resolved>
 ): string {
   const now = new Date();
   const stamp = [
@@ -131,9 +339,14 @@ function makeReport(
   ].join(" ");
   const lines = [
     `=== sync ${stamp} ===`,
-    `掲載データ ${sourceRows}行 / 公開 ${circles.length}件 / 除外 ${excluded.length}件`,
+    `掲載データ ${sourceRows}行 / 一覧に出す ${circles.filter((c) => c.listed).length}件 / 確認用ページ ${circles.filter((c) => !c.listed).length}件 / 除外 ${excluded.length}件`,
     "",
   ];
+  const forReview = circles.filter((c) => !c.listed);
+  lines.push("確認用ページ（一覧に出さない。URL を直接開いたときだけ見られる。noindex）");
+  if (forReview.length === 0) lines.push("  なし");
+  else forReview.forEach((c) => lines.push(`  ${c.id.padEnd(6)}/c/${c.id}  ${c.short_name}`));
+  lines.push("");
   if (missingColumns.length > 0) {
     lines.push("見つからなかった列（見出しがずれている可能性）");
     missingColumns.forEach((column) => lines.push(`  ${column}`));
@@ -150,8 +363,49 @@ function makeReport(
   const withPhoto = circles.filter((c) => c.photos.length > 0).length;
   const withIcon = circles.filter((c) => c.icon !== null).length;
   lines.push(
-    `  ${PHOTO_DIR} を走査（${photoIndex.fileCount}ファイル） / 掲載 ${used}枚（${withPhoto}団体） / アイコン ${withIcon}団体 / 写真なし ${circles.length - withPhoto}団体`
+    `  シートの「写真_元」 ${summary.sheetCircles}団体 / ${summary.sheetFiles}件` +
+      `　「アイコン写真_元」 ${summary.sheetIcons}団体`
   );
+  lines.push(
+    DRY_RUN
+      ? "  --dry-run のため Drive からは取得していません（件数だけ数えました）"
+      : `  ${CIRCLE_DIR} に写真がある ${summary.fetched}団体` +
+        ` / 取り込めなかったファイル ${summary.fileFailures.length}件` +
+        ` / 団体ごと失敗 ${summary.failures.length}件`
+  );
+  summary.failures.forEach((f) =>
+    lines.push(`  ${f.id.padEnd(6)}Drive 取得に失敗: ${f.message.split("\n")[0]}`)
+  );
+  summary.fileFailures.forEach((f) =>
+    lines.push(`  ${f.id.padEnd(6)}${f.name} だけ取り込めず（${f.fileId}）: ${f.message.split("\n")[0]}`)
+  );
+  lines.push(
+    `  ${PHOTO_DIR}（以前に手で置いたもの）を走査（${photoIndex.fileCount}ファイル）` +
+      (summary.fromLegacy.length > 0 ? ` / そこから出す団体 ${summary.fromLegacy.join(", ")}` : "")
+  );
+  lines.push(
+    `  掲載 ${used}枚（${withPhoto}団体） / アイコン ${withIcon}団体 / 写真なし ${circles.length - withPhoto}団体（頭文字タイル）`
+  );
+  // 明るさ補正の記録。取り込み直さない回でも manifest から出す（常設）
+  lines.push("", "明るさ補正（元画像の平均輝度 → 中間調の持ち上げ倍率とトーンカーブの指数。白は動かさない。補正なし＝もともと明るい）");
+  const withImages = circles.filter((c) => c.photos.length > 0 || c.icon !== null);
+  if (withImages.length === 0) lines.push("  写真のある団体がありません");
+  for (const circle of withImages) {
+    const stats = photos.get(circle.id)?.stats ?? [];
+    if (stats.length === 0) {
+      lines.push(
+        `  ${circle.id.padEnd(6)}記録なし（手で置いた写真、または ${PHOTO_DIR} から出している分）`
+      );
+      continue;
+    }
+    for (const stat of stats) {
+      const mean = stat.mean === null ? "測れず" : stat.mean.toFixed(1).padStart(5);
+      const gamma = stat.gamma !== undefined ? `（γ ${stat.gamma.toFixed(3)}）` : "";
+      const applied = stat.brightness > 1.0005 ? `中間調 ×${stat.brightness.toFixed(3)}${gamma}` : "補正なし";
+      lines.push(`  ${circle.id.padEnd(6)}${stat.name.padEnd(10)}輝度 ${mean}  ${applied}`);
+    }
+  }
+
   // 公開対象にないIDの写真が置いてある（消し忘れ）
   const published = new Set(circles.map((c) => c.id));
   for (const id of [...photoIndex.byId.keys()].sort()) {
@@ -180,10 +434,21 @@ async function main(): Promise<void> {
   if (input.団体マスタ.length === 0) throw new Error(`シート "${MASTER_SHEET_NAME}" が空です`);
 
   const photoIndex = scanPhotos(PHOTO_DIR);
+  const summary: PhotoSummary = {
+    sheetCircles: 0,
+    sheetFiles: 0,
+    sheetIcons: 0,
+    fetched: 0,
+    failures: [],
+    fileFailures: [],
+    fromLegacy: [],
+  };
+  const sources = readPhotoSources(input.掲載データ);
+  const photos = await resolvePhotos(auth, sources, photoIndex, summary);
+
   const result = transformSheets(input, {
-    includeUnconfirmed: process.env.INCLUDE_UNCONFIRMED === "1",
     only: ONLY,
-    photos: (id) => photoIndex.byId.get(id),
+    photos: (id) => photos.get(id),
   });
   const report = makeReport(
     result.sourceRows,
@@ -191,15 +456,31 @@ async function main(): Promise<void> {
     result.excluded,
     result.warnings,
     result.missingColumns,
-    photoIndex
+    photoIndex,
+    summary,
+    photos
   );
   writeFileSync(OUT_REPORT, report, "utf8");
   console.log(report);
   console.log(`レポート: ${OUT_REPORT}`);
 
+  // 原稿に残った覚え書きは、公開する前に必ず止める。circles.json は書かない
+  const leftovers = findLeftoverNotes(result.circles);
+  if (leftovers.length > 0) {
+    throw new Error(
+      [
+        "公開する団体の文章に覚え書き（【要確認】【TODO】など）が残っています。シートを直してから回してください:",
+        ...leftovers.map((l) => `  ${l.id}  ${l.field}: ${l.text}`),
+      ].join("\n")
+    );
+  }
+
+  // OGP の画像の大きさを実ファイルから測る。固定値だと実際の画像と食い違う
+  for (const circle of result.circles) circle.og_image = await measureOgImage(circle);
+
   const payload: CircleFile = {
     _note:
-      "npm run sync が生成した中間生成物。原本は掲載データ＋団体マスタ。手で編集しない（CLAUDE.md §1）。photos / icon は public/photos の実ファイルを走査した結果。",
+      "npm run sync が生成した中間生成物。原本は掲載データ＋団体マスタ。手で編集しない（CLAUDE.md §1）。photos / icon は public/circles（シートの写真_元から取得）と public/photos（以前に手で置いたもの）の実ファイル。",
     circles: result.circles,
   };
   const next = JSON.stringify(payload, null, 2) + "\n";

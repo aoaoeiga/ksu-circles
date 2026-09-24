@@ -57,7 +57,7 @@ gcloud auth application-default set-quota-project ksu-circles
 | `npm run sync -- --list-sheets` | タブ名を一覧する |
 | `npm run sync -- --yes` | JSON上書き前の確認を飛ばす |
 
-`INCLUDE_UNCONFIRMED=1` のときだけ `確認中` も含める。preview環境だけに設定し、本番には設定しない。
+公開可否の扱いは §3 のとおり。環境変数で含める団体を変えることはしない（旧 `INCLUDE_UNCONFIRMED` は 2026-09-24 に廃止）。
 
 ---
 
@@ -66,12 +66,13 @@ gcloud auth application-default set-quota-project ksu-circles
 `掲載データ` は158行が式で存在するため、行の有無では判定しない。
 
 1. `通称` が空の行は未面談としてスキップする
-2. `公開可否 = OK` の行だけを通常出力へ含める
-3. `INCLUDE_UNCONFIRMED=1` なら `確認中` も含める
-4. `OK` でも `紹介文` または `キャッチコピー` が空なら、警告 `原稿なしで OK になっている` を出して `確認中` 扱いにする
-5. `団体ID` は `c###` 形式かつ重複なし、`正式名称` は空でないこと。満たさなければ除外する
+2. `公開可否 = OK` の行は `listed: true`（一覧に出す）
+3. `公開可否` が空欄・`確認中` の行は `listed: false`（掲載前の確認用ページ。一覧に出さず、`/c/{id}` を直接開いたときだけ見られる。noindex）
+4. それ以外（`NG`・`非公開` など）はビルドに含めない
+5. `OK` でも `紹介文` または `キャッチコピー` が空なら、警告 `原稿なしで OK になっている` を出して `確認中` 扱い（確認用ページ）にする
+6. `団体ID` は `c###` 形式かつ重複なし、`正式名称` は空でないこと。満たさなければ除外する
 
-公開判定はsync側だけで行い、画面側では出し分けない。
+どの扱いにするかは sync 側だけで決め、`circles.json` の `listed` に書く。画面側は `listed` を読むだけで、公開可否の値そのものは見ない。
 
 ---
 
@@ -98,7 +99,7 @@ gcloud auth application-default set-quota-project ksu-circles
 | 掲載データ | `紹介文` | `description` | 改行を保持 |
 | 掲載データ | `代表からの一言` / `役職` | `leader_comment` | 本文が空なら `null`。役職は `代表（3年）` の形にし、個人名の可能性があれば置換して警告 |
 | 掲載データ | `いま入れるか` | `recruiting` | 既知値はそのまま。空は `null` |
-| 掲載データ | `取材日` | `surveyed_at` | `YYYY-MM`へ |
+| 掲載データ | `取材日` | `surveyed_at` | `YYYY-MM-DD`へ。数値は1899-12-30起点のシリアル値として解釈 |
 | 掲載データ | `Instagram` / `X` / `公式サイト` | `sns` | URL形式でなければ `null`＋警告 |
 | 掲載データ | `tile_size` | `tile_size` | `S` / `M` / `L`。空・未知値は `M` |
 

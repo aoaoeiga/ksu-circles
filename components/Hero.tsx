@@ -10,13 +10,16 @@
 // 移植元は image-slot に写真を差していたが、こちらは /public/photos の実ファイルを読む。
 // 読み込みに失敗した写真は候補から外し、全滅したらジャンル色のベタ塗りに落とす（CLAUDE.md §6）。
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import type { Circle } from "@/types/circle";
 import { BG, EASE, INK, PHOTO, RULE, genreColor, photoSrc } from "@/lib/design";
 import { divisionText } from "@/lib/labels";
+import InitialTile from "@/components/InitialTile";
+import { playHeroEnter, playHeroExit } from "@/lib/flip";
+import { DETAIL_REVEAL_TRANSITION } from "@/lib/motion";
 import { usePrefersReducedMotion } from "@/components/usePrefersReducedMotion";
-import { dismissZoomGhost } from "@/components/zoom";
 
 const FIRST_DELAY = 6000;
 const SLIDE_DELAY = 5000;
@@ -25,6 +28,7 @@ export default function Hero({ circle }: { circle: Circle }) {
   const router = useRouter();
 
   const navRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
   const cueRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; axis: "x" | "y" | null; dx: number } | null>(null);
@@ -40,52 +44,26 @@ export default function Hero({ circle }: { circle: Circle }) {
   const [dragX, setDragX] = useState(0);
   const [hiResFile, setHiResFile] = useState<string | null>(null);
   const reduced = usePrefersReducedMotion();
-  const firstImgRef = useRef<HTMLImageElement>(null);
 
-  const heroFiles = circle.photos.length > 0 ? circle.photos.slice(0, 3) : circle.icon ? [circle.icon] : [];
+  const heroFiles = circle.photos.length > 0 ? circle.photos.slice(0, 5) : circle.icon ? [circle.icon] : [];
   const photos = heroFiles.filter((p) => !broken[p]);
   const hasPhoto = photos.length > 0;
   const showCarousel = photos.length > 1;
   const idx = photos.length ? slide % photos.length : 0;
   const auto = !reduced && autoplay && heroVisible && !hidden && showCarousel;
 
-  // --- 一覧からの拡大との継ぎ目 --------------------------------------------
-  //
-  // 一覧で押した写真を拡大したゴーストが、まだ画面を塞いでいる（components/zoom.ts）。
-  // **ここが「描画できて写真も出た」と言うまで、ゴーストは外れない。**
-  // タイマーで外すと、写真が読めていない一瞬に地の色が見えてしまう。
-  const signalReady = useCallback(() => {
-    // 2フレーム待って、確実に描画されてから外す
-    requestAnimationFrame(() => requestAnimationFrame(dismissZoomGhost));
-  }, []);
-
   const firstFile = photos.length > 0 ? photos[0] : null;
 
-  useEffect(() => {
-    // 写真がない団体はジャンル色のベタ塗りなので、待つものがない
-    if (!firstFile) {
-      signalReady();
-      return;
-    }
-    // キャッシュ済みで onLoad が来ないことがある
-    const img = firstImgRef.current;
-    if (img && img.complete && img.naturalWidth > 0) signalReady();
-  }, [firstFile, signalReady]);
-
   // 1枚目は @600 を先に出し、幅1200が読めてから静かに差し替える。
-  // 一覧が icon でヒーローが photos[0] の場合は、ゴーストをフェードして切り替える。
   useEffect(() => {
     if (!firstFile) return;
     const img = new window.Image();
-    img.onload = () => {
-      setHiResFile(firstFile);
-      signalReady();
-    };
+    img.onload = () => setHiResFile(firstFile);
     img.src = photoSrc(firstFile);
     return () => {
       img.onload = null;
     };
-  }, [firstFile, signalReady]);
+  }, [firstFile]);
 
   // 「どの写真の高解像度が読めたか」で持つ。差し替え待ちを state のリセットで表さない
   const firstHiRes = firstFile !== null && hiResFile === firstFile;
@@ -197,6 +175,24 @@ export default function Hero({ circle }: { circle: Circle }) {
     else router.push("/");
   };
 
+  // 一覧との行き来の拡大・縮小（lib/flip.ts）。
+  //
+  // 縮小を popstate で始めることはできない。React 19 は popstate の更新を
+  // その場で流すので、popstate のリスナが呼ばれる頃には詳細のDOMがもう無い。
+  // **片づけ関数**なら、Reactが要素を外す直前に呼ばれるのでまだ実体が残っている。
+  // 自前の戻るボタンも端末の戻る操作も、どちらもここを通る。
+  useLayoutEffect(() => {
+    playHeroEnter(heroRef.current, stageRef.current, circle.id, reduced);
+    const stage = stageRef.current;
+    return () => {
+      // 開発時の二度掛けでは行き先が変わっていない。そのときは何もしない
+      if (window.location.pathname === `/c/${circle.id}`) return;
+      playHeroExit(stage, circle.id, reduced);
+    };
+    // 初回の描画時だけ。reduced の変化で演出をやり直さない
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <>
       <div
@@ -262,6 +258,8 @@ export default function Hero({ circle }: { circle: Circle }) {
       </div>
 
       <div
+        ref={stageRef}
+        data-hero-stage={circle.id}
         onPointerDown={onDragStart}
         onPointerMove={onDragMove}
         onPointerUp={onDragEnd}
@@ -277,9 +275,12 @@ export default function Hero({ circle }: { circle: Circle }) {
       >
         <div
           ref={heroRef}
+          data-shared-image={circle.id}
           style={{
             position: "absolute",
             inset: 0,
+            overflow: "hidden",
+            borderRadius: 0,
             transformOrigin: "50% 50%",
             background: hasPhoto ? PHOTO : genreColor(circle.genre),
             filter: "brightness(" + (hasPhoto ? 0.94 : 1) + ")",
@@ -289,6 +290,9 @@ export default function Hero({ circle }: { circle: Circle }) {
                 : undefined,
           }}
         >
+          {/* 写真が1枚も無い団体。一覧のタイルと同じ頭文字タイルがそのまま広がる */}
+          {!hasPhoto && <InitialTile circle={circle} />}
+
           {photos.map((file, i) => {
             const on = i === idx;
             return (
@@ -310,18 +314,13 @@ export default function Hero({ circle }: { circle: Circle }) {
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  ref={i === 0 ? firstImgRef : undefined}
                   src={i === 0 && !firstHiRes ? photoSrc(file, "thumb") : photoSrc(file)}
                   alt=""
                   width={1200}
                   height={800}
                   loading={i === 0 ? "eager" : "lazy"}
                   fetchPriority={i === 0 ? "high" : undefined}
-                  onLoad={i === 0 ? signalReady : undefined}
-                  onError={() => {
-                    setBroken((b) => ({ ...b, [file]: true }));
-                    if (i === 0) signalReady();
-                  }}
+                  onError={() => setBroken((b) => ({ ...b, [file]: true }))}
                   style={{
                     position: "absolute",
                     inset: 0,
@@ -336,7 +335,11 @@ export default function Hero({ circle }: { circle: Circle }) {
           })}
         </div>
 
-        <div
+        <motion.div
+          data-hero-chrome=""
+          initial={reduced ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={reduced ? { duration: 0 } : DETAIL_REVEAL_TRANSITION}
           style={{
             position: "absolute",
             inset: 0,
@@ -346,7 +349,11 @@ export default function Hero({ circle }: { circle: Circle }) {
           }}
         />
 
-        <div
+        <motion.div
+          data-hero-chrome=""
+          initial={reduced ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={reduced ? { duration: 0 } : DETAIL_REVEAL_TRANSITION}
           onClick={back}
           role="link"
           tabIndex={0}
@@ -367,9 +374,13 @@ export default function Hero({ circle }: { circle: Circle }) {
           }}
         >
           ⟨
-        </div>
+        </motion.div>
 
-        <div
+        <motion.div
+          data-hero-chrome=""
+          initial={reduced ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={reduced ? { duration: 0 } : DETAIL_REVEAL_TRANSITION}
           style={{
             position: "absolute",
             left: 0,
@@ -511,10 +522,11 @@ export default function Hero({ circle }: { circle: Circle }) {
           >
             {circle.name}
           </div>
-        </div>
+        </motion.div>
 
         <div
           ref={cueRef}
+          data-hero-chrome=""
           style={{
             position: "absolute",
             left: 0,

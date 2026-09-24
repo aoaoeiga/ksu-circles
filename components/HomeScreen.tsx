@@ -1,16 +1,16 @@
 "use client";
 
-// 一覧（S-01）。design/ksu-circles-v3.dc.html の `isHome` ブロックの移植。
+// 一覧（S-01）。絞り込みは従来のまま、表示だけを大小のタイルグリッドにする。
 //
 // 移植元はクラス1つで画面切り替えまで持っていたが、こちらは Next のルーティングに載せる。
-// 見た目・余白・色・書体・アニメーションは移植元の値をそのまま持ってきている。
+// タイルのサイズは団体IDから決め、再読込や絞り込みで変えない。
 //
 // 絞り込みの状態はURLに載せる（要件定義 §6-1「共有できること」）。ただし
 // **サーバーで searchParams を読むとページが動的になる**ので、読むのはこの client 側だけ。
 // 詳しくは docs/14-nextjs-notes.md §2。
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { Circle } from "@/types/circle";
 import {
   BG,
@@ -24,22 +24,19 @@ import {
   INK,
   INK_MID,
   RULE,
-  SHADOW,
   WHITE,
-  cellStyle,
   chipStyle,
   genreColor,
   num,
   switchKnob,
   switchTrack,
-  type CellKind,
   type FeeChoice,
 } from "@/lib/design";
 import { DAY_LABELS } from "@/lib/gender";
-import { feeText, membersText, multiText } from "@/lib/labels";
-import PhotoTile from "@/components/PhotoTile";
-import { openDetailZoom } from "@/components/zoom";
+import CircleTile from "@/components/CircleTile";
+import { rememberTile } from "@/lib/flip";
 import { usePrefersReducedMotion } from "@/components/usePrefersReducedMotion";
+import { tileShapeForId } from "@/lib/tile-layout";
 
 export type Filters = {
   days: number[];
@@ -57,15 +54,10 @@ export const EMPTY_FILTERS: Filters = {
   beginner: false,
 };
 
-/** 移植元の COVER_ROWS。表紙タイルの行の組み方 */
-const COVER_ROWS = [
-  { count: 1, cols: "1fr", aspect: "3 / 2" },
-  { count: 2, cols: "1.75fr 1fr", aspect: "16 / 11" },
-  { count: 2, cols: "1fr 2.1fr", aspect: "16 / 8" },
-  { count: 2, cols: "1.3fr 1fr", aspect: "16 / 13" },
-];
-
-const TILE_RANK: Record<Circle["tile_size"], number> = { L: 0, M: 1, S: 2 };
+// 一度出したタイルは覚えておく。詳細から戻ったときに一覧ぜんぶが入り直すと、
+// 縮んでくるヒーローの着地点が動いてしまう（lib/flip.ts）。
+// 絞り込みで新しく現れたタイルは、これまでどおり下から入る。
+const revealed = new Set<string>();
 
 /** 移植元の passes(). 絞り込みの判定 */
 function passes(o: Circle, f: Filters): boolean {
@@ -104,7 +96,6 @@ export default function HomeScreen({
   circles: Circle[];
   initial?: Filters;
 }) {
-  const router = useRouter();
   const [f, setF] = useState<Filters>(initial);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [leaving, setLeaving] = useState<string[]>([]);
@@ -123,23 +114,6 @@ export default function HomeScreen({
   }, [circles]);
 
   const reduced = usePrefersReducedMotion();
-
-  // 表紙のタイル。移植元はランダムに並べ替えていたが、静的生成では
-  // サーバーとクライアントで結果がずれる（ハイドレーション不一致）ので使えない。
-  // 代わりに tile_size（docs/13-schema-mapping.md §4）の L→M→S 順で先頭7件を採る。
-  const coverRows = useMemo(() => {
-    const picked = [...circles]
-      .sort((a, b) => TILE_RANK[a.tile_size] - TILE_RANK[b.tile_size])
-      .slice(0, 7);
-    const rows: { tiles: Circle[]; cols: string; aspect: string }[] = [];
-    let k = 0;
-    for (const spec of COVER_ROWS) {
-      const tiles: Circle[] = [];
-      for (let n = 0; n < spec.count && k < picked.length; n++, k++) tiles.push(picked[k]);
-      if (tiles.length === spec.count) rows.push({ tiles, cols: spec.cols, aspect: spec.aspect });
-    }
-    return rows;
-  }, [circles]);
 
   const filteredCount = useMemo(
     () => circles.filter((c) => passes(c, f)).length,
@@ -227,6 +201,8 @@ export default function HomeScreen({
           el.style.opacity = "1";
           el.style.transform = "translateY(0)";
           el.setAttribute("data-shown", "1");
+          const id = el.getAttribute("data-org");
+          if (id) revealed.add(id);
           io.unobserve(el);
         });
       },
@@ -237,6 +213,12 @@ export default function HomeScreen({
       .forEach((n) => {
         const el = n as HTMLElement;
         el.setAttribute("data-observed", "1");
+        const id = el.getAttribute("data-org");
+        if (id && revealed.has(id)) {
+          // すでに見せたタイル。戻ってきただけなので、出ている形のまま置く
+          el.setAttribute("data-shown", "1");
+          return;
+        }
         el.style.opacity = "0";
         el.style.transform = "translateY(24px)";
         io.observe(el);
@@ -252,27 +234,12 @@ export default function HomeScreen({
     applyFilters({ [key]: a } as Partial<Filters>);
   };
 
-  /** カードを押したとき。写真がそのまま全画面へ育つ（要件定義 §6-2） */
-  const open = (id: string) => (e: React.MouseEvent<HTMLElement>) => {
-    const href = "/c/" + id + filtersToQuery(f);
-    openDetailZoom(e.currentTarget, href, router, reduced);
-  };
-
   const filterCount =
     f.days.length +
     f.cats.length +
     f.genres.length +
     (f.fee !== FEE_ANY ? 1 : 0) +
     (f.beginner ? 1 : 0);
-
-  const cellsFor = (o: Circle) =>
-    DAY_ORDER.map((dayIdx, i) => {
-      let kind: CellKind = "off";
-      if (o.active_days.length === 0) kind = "hatch";
-      else if (o.active_days.indexOf(dayIdx) >= 0)
-        kind = f.days.indexOf(dayIdx) >= 0 ? "match" : "on";
-      return { label: DAY_LABELS[dayIdx], style: cellStyle(kind, i) };
-    });
 
   return (
     <div data-screen="home">
@@ -333,57 +300,6 @@ export default function HomeScreen({
         >
           {circles.length}団体を、活動曜日と年会費から探せます。
         </p>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "26px 20px 0" }}>
-        {coverRows.map((row, ri) => (
-          <div
-            key={ri}
-            style={{
-              display: "grid",
-              gridTemplateColumns: row.cols,
-              gap: 10,
-              aspectRatio: row.aspect,
-            }}
-          >
-            {row.tiles.map((o, ti) => {
-              const idx = COVER_ROWS.slice(0, ri).reduce((a, r) => a + r.count, 0) + ti;
-              return (
-                <div
-                  key={o.id}
-                  onClick={open(o.id)}
-                  style={{
-                    position: "relative",
-                    height: "100%",
-                    minWidth: 0,
-                    animation: `tileOpen 520ms ${EASE} both`,
-                    animationDelay: 340 + idx * 60 + "ms",
-                  }}
-                >
-                  <div
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      overflow: "hidden",
-                      borderRadius: 16,
-                      display: "flex",
-                      alignItems: "flex-end",
-                    }}
-                  >
-                    <PhotoTile
-                      circle={o}
-                      nameSize={idx === 0 ? 26 : 16}
-                      nameSizeNoPhoto={idx === 0 ? 26 : 16}
-                      namePadding={16}
-                      veilOpacity={0.62}
-                      priority={idx === 0}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ))}
       </div>
 
       <div style={{ padding: "44px 20px 120px" }}>
@@ -447,102 +363,29 @@ export default function HomeScreen({
           </div>
         )}
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 26 }}>
+        <div className="circle-grid">
           {visible.map((id) => {
             const o = byId[id];
             if (!o) return null;
             const going = leaving.indexOf(o.id) >= 0;
+            const shape = tileShapeForId(o.id);
             return (
-              <div
+              <Link
                 key={o.id}
+                href={`/c/${o.id}${filtersToQuery(f)}`}
+                // 押した瞬間のタイルの位置を控える。詳細のヒーローはここから広がる
+                onClick={(e) => rememberTile(o.id, e.currentTarget)}
                 data-org={o.id}
                 data-reveal="1"
-                onClick={open(o.id)}
+                className={`circle-tile circle-tile--${shape}`}
                 style={{
-                  cursor: "pointer",
-                  background: WHITE,
-                  borderRadius: 16,
-                  overflow: "hidden",
-                  boxShadow: SHADOW,
                   opacity: going ? 0 : undefined,
                   transform: going ? "scale(0.96)" : undefined,
                   transition: going ? "opacity 180ms ease-out, transform 180ms ease-out" : undefined,
                 }}
               >
-                <div
-                  style={{
-                    position: "relative",
-                    width: "100%",
-                    aspectRatio: "3 / 2",
-                    overflow: "hidden",
-                    display: "flex",
-                    alignItems: "flex-end",
-                  }}
-                >
-                  <PhotoTile
-                    circle={o}
-                    nameSize={22}
-                    nameSizeNoPhoto={26}
-                    namePadding={18}
-                    nameZIndex={2}
-                    veilOpacity={0.6}
-                  />
-                </div>
-                <div style={{ padding: "18px 20px 20px" }}>
-                  <div style={{ display: "flex", gap: 4 }}>
-                    {cellsFor(o).map((c, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                      >
-                        <div style={{ fontSize: 10, lineHeight: 1, color: INK_MID }}>{c.label}</div>
-                        <div style={c.style} />
-                      </div>
-                    ))}
-                  </div>
-                  {o.active_days.length === 0 && (
-                    <div style={{ fontSize: 11, color: INK_MID, marginTop: 7 }}>活動曜日 未確認</div>
-                  )}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 16,
-                      marginTop: 14,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <div style={o.annual_fee === null ? { fontSize: 13, color: INK_MID } : num(14)}>
-                      {feeText(o)}
-                    </div>
-                    <div
-                      style={
-                        o.member_count === null ? { fontSize: 13, color: INK_MID } : num(14)
-                      }
-                    >
-                      {membersText(o)}
-                    </div>
-                    <div
-                      style={{
-                        minWidth: 0,
-                        maxWidth: "100%",
-                        fontSize: 13,
-                        color: INK,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                    >
-                      {multiText(o)}
-                    </div>
-                  </div>
-                </div>
-              </div>
+                <CircleTile circle={o} shape={shape} />
+              </Link>
             );
           })}
         </div>

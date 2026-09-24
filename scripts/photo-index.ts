@@ -5,12 +5,38 @@
 //
 // 期待するファイル名:
 //   {id}-icon.webp        一覧タイルと OGP 用。1:1、幅400。@600 は無い
-//   {id}-{n}.webp         ヒーロー用。3:2、幅1200。n は 1 から詰める。最大3枚
+//   {id}-{n}.webp         ヒーロー用。3:2、幅1200。n は 1 から詰める。最大5枚
 //   {id}-{n}@600.webp     同じ写真の幅600。photos 配列には入れない（lib/design.ts の photoSrc() が組み立てる）
 
 import { existsSync, readdirSync } from "node:fs";
 
-export const MAX_PHOTOS = 3;
+export const MAX_PHOTOS = 5;
+
+/** 写真の置き場所ひとつぶん。public/circles でも public/photos でも同じ形で扱う */
+export type PhotoSet = { icon: string | null; photos: string[] };
+
+/**
+ * 写真の置き場所は2系統ある。**新しいほうを優先し、無ければ古いほうに落とす。**
+ *
+ *   fresh   public/circles/<団体ID>/   シートの写真_元から取り込んだもの、または手で置いたもの
+ *   legacy  public/photos/             以前に手で置いたもの
+ *
+ * 古いほうを切ると、まだシートに写真が無い団体（c054 など）がサイトから消える。
+ * アイコンと写真は別々に判定する。写真だけ新しくなっている団体があるため。
+ */
+export function mergePhotoSources(
+  fresh: PhotoSet,
+  legacy: PhotoSet | undefined
+): { icon: string | null; photos: string[]; usesLegacyPhotos: boolean; usesLegacyIcon: boolean } {
+  const usesLegacyPhotos = fresh.photos.length === 0 && (legacy?.photos.length ?? 0) > 0;
+  const usesLegacyIcon = fresh.icon === null && Boolean(legacy?.icon);
+  return {
+    icon: fresh.icon ?? legacy?.icon ?? null,
+    photos: (fresh.photos.length > 0 ? fresh.photos : (legacy?.photos ?? [])).slice(0, MAX_PHOTOS),
+    usesLegacyPhotos,
+    usesLegacyIcon,
+  };
+}
 
 export type PhotoEntry = {
   icon: string | null;

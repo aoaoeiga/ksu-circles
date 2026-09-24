@@ -14,8 +14,19 @@ export type SheetInput = {
 };
 
 export type SyncWarning = { id: string; message: string };
+/** 写真の取り込み元として sync.ts が読むセル */
+export type PhotoSourceCells = {
+  icon: string | null;
+  photos: string | null;
+  /** 聞き取りメモ。写真のURLが書かれていることがある */
+  memo: string | null;
+};
 export type SyncExcluded = { id: string; reason: string };
-/** public/photos の走査結果（scripts/photo-index.ts）。sync は画像を変換しない（docs/10 §7） */
+/**
+ * 団体IDごとの写真の置き場所。scripts/sync.ts が
+ * Drive から落としたもの（public/circles/）と、手で置いたもの（public/photos/）を
+ * まとめてから渡す。ここでは受け取るだけで、取得も変換もしない。
+ */
 export type PhotoLookup = (id: string) => { icon: string | null; photos: string[]; warnings: string[] } | undefined;
 
 export type TransformResult = {
@@ -27,7 +38,6 @@ export type TransformResult = {
 };
 
 type TransformOptions = {
-  includeUnconfirmed?: boolean;
   only?: string[] | null;
   now?: Date;
   /** 団体IDごとの写真ファイル名。省略時は写真なし扱い（テスト用） */
@@ -72,11 +82,18 @@ const PUBLISH_COLUMNS = {
   catchcopy: "キャッチコピー",
   tileSize: "tile_size",
   publish: "公開可否",
+  iconSource: "アイコン写真_元",
+  photoSource: "写真_元",
+  // 移行時の聞き取りメモ。写真のURLが紛れていることがあるので拾って知らせる
+  memo: "聞き取りメモ",
 } as const;
 
 const MASTER_COLUMNS = {
   id: "団体ID",
   division: "大分類",
+  // 掲載データの「ジャンル」は面談の回答から転記されるので面談済みの行しか埋まらない。
+  // 全団体分はこちらに入っているので、空のときの引き当て先にする
+  genre: "ジャンル",
 } as const;
 
 const WEEKDAYS: (keyof typeof PUBLISH_COLUMNS)[] = [
@@ -96,7 +113,17 @@ const CATEGORIES: Category[] = [
   "学生プロジェクトチーム",
   "委員会・その他",
 ];
-const GENRES: Genre[] = ["球技", "武道", "音楽", "文化・創作", "ボランティア", "その他"];
+// types/circle.ts の Genre と同じ並び。シートの「ジャンル」列の取りうる値
+const GENRES: Genre[] = [
+  "球技",
+  "武道",
+  "音楽",
+  "文化・創作",
+  "ボランティア",
+  "学術・ビジネス",
+  "運動",
+  "その他",
+];
 const RECRUITINGS: Recruiting[] = ["いつでも入れる", "4月のみ", "募集していない"];
 
 function normalizeHeader(value: SheetCell | undefined): string {
@@ -125,6 +152,19 @@ function toISODate(value: SheetCell | undefined): { date: string | null; ambiguo
   const normalized = String(value ?? "").normalize("NFKC").trim();
   if (!normalized) return { date: null, ambiguous: false };
 
+  // Google Sheets API は日付セルをシリアル値で返す場合がある。
+  // Sheets / Excel と同じく 1899-12-30 を 0 とし、時刻部分は切り捨てる。
+  if (/^\d+(?:\.\d+)?$/.test(normalized)) {
+    const serial = Number(normalized);
+    if (Number.isFinite(serial) && serial >= 0) {
+      const epoch = Date.UTC(1899, 11, 30);
+      const date = new Date(epoch + Math.floor(serial) * 86_400_000);
+      if (!Number.isNaN(date.getTime())) {
+        return { date: date.toISOString().slice(0, 10), ambiguous: false };
+      }
+    }
+  }
+
   const ymd = /^(\d{4})[/\-年](\d{1,2})[/\-月](\d{1,2})/.exec(normalized);
   if (ymd) {
     const [, year, month, day] = ymd;
@@ -149,15 +189,16 @@ function toISODate(value: SheetCell | undefined): { date: string | null; ambiguo
 function cleanRole(raw: string | null, warn: (message: string) => void): string {
   const normalized = (raw ?? "").normalize("NFKC").trim();
   if (!normalized) return "代表";
-  const roles = "代表|副代表|部長|副部長|主将|副主将|代表者|会長|幹事長|マネージャー";
-  const exact = new RegExp(`^\\s*(${roles})\\s*[（(]?\\s*(\\d)\\s*年?\\s*[)）]?\\s*$`).exec(normalized);
+  const roles = "代表|副代表|部長|副部長|主将|副主将|主務|副主務|会計|代表者|会長|幹事長|マネージャー";
+  // 学年は「3年」のほか、関西で使う「3回生」も読む。役職との間の「・」も許す（例: 主務・2回生）
+  const exact = new RegExp(`^\\s*(${roles})\\s*[・･]?\\s*[（(]?\\s*(\\d)\\s*(?:年|回生)?\\s*[)）]?\\s*$`).exec(normalized);
   if (exact) return `${exact[1]}（${exact[2]}年）`;
 
   const roleOnly = new RegExp(`^(${roles})$`).exec(normalized.replace(/[\s　]/g, ""));
   if (roleOnly) return roleOnly[1];
 
   const role = new RegExp(`(${roles})`).exec(normalized);
-  const year = /(\d)\s*年/.exec(normalized);
+  const year = /(\d)\s*(?:年|回生)/.exec(normalized);
   const rebuilt = year
     ? `${role ? role[1] : "代表"}（${year[1]}年）`
     : role
@@ -165,6 +206,48 @@ function cleanRole(raw: string | null, warn: (message: string) => void): string 
       : "代表";
   warn(`役職に個人名が混ざっている可能性（"${raw}" → "${rebuilt}" に置換）`);
   return rebuilt;
+}
+
+/**
+ * フォームの Instagram・X 欄には、URL ではなくアカウント名（@ の有無どちらも）が入ることがある。
+ * アカウント名の形なら URL に直して読む。それ以外の形は urlOrNull が警告して捨てる
+ */
+function snsUrl(raw: string | null, service: "instagram" | "x"): string | null {
+  if (!raw) return null;
+  const handle = raw.trim().replace(/^[@＠]/, "");
+  if (service === "instagram" && /^[A-Za-z0-9._]{1,30}$/.test(handle)) {
+    return `https://www.instagram.com/${handle}/`;
+  }
+  if (service === "x" && /^[A-Za-z0-9_]{1,15}$/.test(handle)) return `https://x.com/${handle}`;
+  return raw;
+}
+
+/**
+ * 公開する文章に残った覚え書き（【要確認：…】【TODO】など）を探す。
+ * 聞き取りの途中で原稿に書いた印で、残ったまま公開すると読者にそのまま見える。
+ * sync はこれが1件でもあれば止まる（circles.json を書かない）
+ */
+const LEFTOVER_NOTE = /[【［[]\s*(?:要確認|確認中|未確認|要追記|仮|TODO|FIXME|TBD)/gi;
+
+export function findLeftoverNotes(
+  circles: Circle[],
+): { id: string; field: string; text: string }[] {
+  const found: { id: string; field: string; text: string }[] = [];
+  const walk = (id: string, field: string, value: unknown) => {
+    if (typeof value === "string") {
+      // 1つの欄に複数残っていることがあるので、全部出す
+      for (const hit of value.matchAll(LEFTOVER_NOTE)) {
+        const text = value.slice(hit.index, hit.index + 40).replace(/\s*\n\s*/g, " ⏎ ");
+        found.push({ id, field, text });
+      }
+    } else if (Array.isArray(value)) {
+      value.forEach((item, i) => walk(id, `${field}[${i}]`, item));
+    } else if (value && typeof value === "object") {
+      for (const [key, inner] of Object.entries(value)) walk(id, field ? `${field}.${key}` : key, inner);
+    }
+  };
+  for (const circle of circles) walk(circle.id, "", circle);
+  return found;
 }
 
 function urlOrNull(raw: string | null, label: string, warn: (message: string) => void): string | null {
@@ -192,6 +275,30 @@ function makeReader(values: SheetValues, columns: Record<string, string>) {
       return position === undefined ? undefined : row[position];
     },
   };
+}
+
+/**
+ * 「掲載データ」から写真の元（Drive URL）のセルだけを取り出す。
+ *
+ * 写真の取得は Google Drive を叩くので sync.ts の担当だが、
+ * **列名の定義は PUBLISH_COLUMNS 1か所に閉じておきたい**のでここに置く。
+ * 公開可否の判定はしない。呼ぶ側が公開対象のIDだけ使う。
+ */
+export function readPhotoSources(
+  values: SheetValues
+): Map<string, PhotoSourceCells> {
+  const reader = makeReader(values, PUBLISH_COLUMNS);
+  const found = new Map<string, PhotoSourceCells>();
+  for (const row of values.slice(1)) {
+    const id = text(reader.get(row, "id"));
+    if (!id) continue;
+    found.set(id, {
+      icon: text(reader.get(row, "iconSource")),
+      photos: text(reader.get(row, "photoSource")),
+      memo: text(reader.get(row, "memo")),
+    });
+  }
+  return found;
 }
 
 function normalizeCategory(raw: string | null, warn: (message: string) => void): Category {
@@ -231,10 +338,16 @@ export function transformSheets(input: SheetInput, options: TransformOptions = {
   const seenIds = new Set<string>();
   const now = options.now ?? new Date();
 
-  const divisions = new Map<string, string>();
+  // 団体マスタから、団体IDで引けるようにしておく
+  const fromMaster = new Map<string, { division: string; genre: string | null }>();
   for (const row of input.団体マスタ.slice(1)) {
     const id = text(master.get(row, "id"));
-    if (id) divisions.set(id, text(master.get(row, "division")) ?? "");
+    if (id) {
+      fromMaster.set(id, {
+        division: text(master.get(row, "division")) ?? "",
+        genre: text(master.get(row, "genre")),
+      });
+    }
   }
 
   for (let offset = 1; offset < input.掲載データ.length; offset++) {
@@ -256,11 +369,14 @@ export function transformSheets(input: SheetInput, options: TransformOptions = {
       warn("原稿なしで OK になっている");
       effectiveStatus = "確認中";
     }
-    const included =
-      effectiveStatus === "OK" ||
-      (options.includeUnconfirmed === true && effectiveStatus === "確認中");
-    if (!included) {
-      excluded.push({ id, reason: `公開可否 = ${effectiveStatus ?? "(空欄)"}` });
+    // 公開可否の3つの扱い:
+    //   OK（原稿あり）   一覧に出す
+    //   空欄・確認中     掲載前の確認用ページ。一覧に出さず、URL を直接開いたときだけ見られる
+    //   それ以外（NG など） ビルドに含めない
+    const listed = effectiveStatus === "OK";
+    const forReview = effectiveStatus === null || effectiveStatus === "確認中";
+    if (!listed && !forReview) {
+      excluded.push({ id, reason: `公開可否 = ${effectiveStatus}` });
       continue;
     }
 
@@ -279,10 +395,15 @@ export function transformSheets(input: SheetInput, options: TransformOptions = {
     }
     seenIds.add(id);
 
-    const rawDivision = divisions.get(id) ?? "";
+    const rawDivision = fromMaster.get(id)?.division ?? "";
     const division = (DIVISIONS as string[]).includes(rawDivision)
       ? (rawDivision as Division)
       : "その他";
+    // ジャンルは掲載データを優先し、空なら団体マスタから引く。
+    // どちらも空だと頭文字タイルが全部同じ灰色になるので、そのときは知らせる
+    const genreRaw = text(get("genre")) ?? fromMaster.get(id)?.genre ?? null;
+    if (!genreRaw) warn("ジャンルが空（掲載データ・団体マスタとも）。頭文字タイルは「その他」の色になる");
+
     if (!rawDivision) warn("団体マスタの大分類が空（\"その他\"を使用）");
     else if (division === "その他" && rawDivision !== "その他") {
       warn(`団体マスタの大分類が未知値（"${rawDivision}" → "その他"）`);
@@ -310,7 +431,7 @@ export function transformSheets(input: SheetInput, options: TransformOptions = {
       : null;
 
     const surveyed = toISODate(get("surveyedAt"));
-    const surveyedAt = surveyed.date?.slice(0, 7) ?? "";
+    const surveyedAt = surveyed.date ?? "";
     if (!surveyed.date) warn(`取材日が読めない（"${text(get("surveyedAt")) ?? ""}"）`);
     if (surveyed.ambiguous) warn(`取材日が月日どちらとも取れる形（"${String(get("surveyedAt"))}" → ${surveyed.date} と解釈）`);
 
@@ -319,12 +440,12 @@ export function transformSheets(input: SheetInput, options: TransformOptions = {
       tileRaw === "S" || tileRaw === "L" || tileRaw === "M" ? tileRaw : "M";
     if (tileRaw !== tileSize) warn(`tile_size が S/M/L でない（"${tileRaw}" → "M"）`);
 
-    // 写真はシートから読まない。public/photos に置いてあるファイルが正（docs/10 §7）
+    // 写真の実体は sync 側が用意する。ここは受け取った結果を入れるだけ
     const found = options.photos?.(id);
     const icon = found?.icon ?? null;
     const photos = found?.photos ?? [];
     found?.warnings.forEach(warn);
-    if (!icon && photos.length === 0) warn(`写真0枚（public/photos に ${id}-1.webp も ${id}-icon.webp も無い）`);
+    if (!icon && photos.length === 0) warn("写真0枚（アイコンは頭文字タイルで出る）");
 
     const memberCount = numberOrNull(get("members"));
     const beginnerCount = numberOrNull(get("beginners"));
@@ -352,7 +473,7 @@ export function transformSheets(input: SheetInput, options: TransformOptions = {
       name,
       division,
       category: normalizeCategory(text(get("category")), warn),
-      genre: normalizeGenre(text(get("genre")), warn),
+      genre: normalizeGenre(genreRaw, warn),
       one_liner: oneLiner,
       active_days: WEEKDAYS.flatMap((key, day) => checked(get(key)) ? [day] : []),
       days_undecided: checked(get("daysUndecided")),
@@ -371,13 +492,16 @@ export function transformSheets(input: SheetInput, options: TransformOptions = {
       recruiting: normalizeRecruiting(text(get("recruiting")), warn),
       surveyed_at: surveyedAt,
       sns: {
-        instagram: urlOrNull(text(get("instagram")), "Instagram", warn),
-        x: urlOrNull(text(get("x")), "X", warn),
+        instagram: urlOrNull(snsUrl(text(get("instagram")), "instagram"), "Instagram", warn),
+        x: urlOrNull(snsUrl(text(get("x")), "x"), "X", warn),
         website: urlOrNull(text(get("website")), "公式サイト", warn),
       },
       icon,
       photos,
       tile_size: tileSize,
+      listed,
+      // 画像の大きさは実ファイルを測らないと分からないので、sync.ts が埋める
+      og_image: null,
     };
     circles.push(circle);
   }

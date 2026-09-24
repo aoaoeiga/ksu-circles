@@ -1,0 +1,31 @@
+{
+  "v": 4,
+  "files": {
+    "01.webp": "107aF0lVA43dYEM8WefHbZv0-V-oZQvfE",
+    "02.webp": "1h0WkODtb8I4GdV-HpbJGthgEnbB9IJd1",
+    "03.webp": "1KWRP7_xem57mUd8ACUPc6FGn5FctXugr",
+    "04.webp": "1W9t_guay2De8GaQBjPVWjbnpgySsmtMT"
+  },
+  "stats": {
+    "01.webp": {
+      "mean": 90.3027311687202,
+      "brightness": 1.15,
+      "gamma": 0.8653670142666088
+    },
+    "02.webp": {
+      "mean": 153.58837276034888,
+      "brightness": 1,
+      "gamma": 1
+    },
+    "03.webp": {
+      "mean": 97.64116287231445,
+      "brightness": 1.15,
+      "gamma": 0.8544092428384575
+    },
+    "04.webp": {
+      "mean": 107.30105582020992,
+      "brightness": 1.1183487346207293,
+      "gamma": 0.870783253592621
+    }
+  }
+}

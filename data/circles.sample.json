@@ -28,7 +28,9 @@
       "sns": { "instagram": null, "x": null, "website": null },
       "icon": null,
       "photos": [],
-      "tile_size": "M"
+      "tile_size": "M",
+      "listed": true,
+      "og_image": null
     },
     {
       "id": "c902",
@@ -57,7 +59,9 @@
       "sns": { "instagram": null, "x": null, "website": null },
       "icon": null,
       "photos": [],
-      "tile_size": "S"
+      "tile_size": "S",
+      "listed": true,
+      "og_image": null
     },
     {
       "id": "c903",
@@ -86,7 +90,9 @@
       "sns": { "instagram": null, "x": null, "website": null },
       "icon": "c903-icon.webp",
       "photos": [],
-      "tile_size": "M"
+      "tile_size": "M",
+      "listed": true,
+      "og_image": null
     },
     {
       "id": "c904",
@@ -115,7 +121,9 @@
       "sns": { "instagram": null, "x": null, "website": null },
       "icon": null,
       "photos": ["c904-1.webp", "c904-2.webp"],
-      "tile_size": "L"
+      "tile_size": "L",
+      "listed": true,
+      "og_image": null
     },
     {
       "id": "c905",
@@ -144,7 +152,9 @@
       "sns": { "instagram": null, "x": null, "website": null },
       "icon": null,
       "photos": [],
-      "tile_size": "M"
+      "tile_size": "M",
+      "listed": true,
+      "og_image": null
     },
     {
       "id": "c906",
@@ -173,7 +183,9 @@
       "sns": { "instagram": null, "x": null, "website": null },
       "icon": null,
       "photos": [],
-      "tile_size": "M"
+      "tile_size": "M",
+      "listed": true,
+      "og_image": null
     },
     {
       "id": "c907",
@@ -202,7 +214,9 @@
       "sns": { "instagram": null, "x": null, "website": null },
       "icon": null,
       "photos": [],
-      "tile_size": "S"
+      "tile_size": "S",
+      "listed": true,
+      "og_image": null
     },
     {
       "id": "c908",
@@ -231,7 +245,9 @@
       "sns": { "instagram": null, "x": null, "website": null },
       "icon": "c908-icon.webp",
       "photos": ["c908-1.webp", "c908-2.webp"],
-      "tile_size": "L"
+      "tile_size": "L",
+      "listed": true,
+      "og_image": null
     }
   ]
 }
