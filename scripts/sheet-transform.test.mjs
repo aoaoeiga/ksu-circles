@@ -8,7 +8,7 @@ import { mkdirSync } from "node:fs";
 import sharp from "sharp";
 import { findLeftoverNotes, readPhotoSources, transformSheets } from "./sheet-transform.ts";
 import { mergePhotoSources, scanPhotos } from "./photo-index.ts";
-import { centerCrop, isHevcHeif, parseDriveCell, syncCirclePhotos, toneFor } from "./photos.ts";
+import { centerCrop, ensureVariants, isHevcHeif, parseDriveCell, syncCirclePhotos, toneFor } from "./photos.ts";
 
 const fixture = JSON.parse(
   readFileSync(new URL("./fixtures/sheet-sample.json", import.meta.url), "utf8")
@@ -518,4 +518,36 @@ test("findLeftoverNotes: 公開する文章に残った【要確認】【TODO】
   const plain = structuredClone(transformSheets(fixture, { now }).circles);
   plain[0].description = "【新歓】4月に体験会があります。";
   assert.deepEqual(findLeftoverNotes(plain), []);
+});
+
+test("ensureVariants: 写真ごとに @600・@1200・@bg を作り、拡大せず、新しければ作り直さない", async () => {
+  const { statSync, utimesSync, readdirSync } = await import("node:fs");
+  const dir = mkdtempSync(join(tmpdir(), "ksu-variants-"));
+  try {
+    const big = await sharp({ create: { width: 1600, height: 1067, channels: 3, background: "#777" } }).webp().toBuffer();
+    const small = await sharp({ create: { width: 900, height: 600, channels: 3, background: "#777" } }).webp().toBuffer();
+    writeFileSync(join(dir, "01.webp"), big);
+    writeFileSync(join(dir, "02.webp"), small);
+    writeFileSync(join(dir, "icon.webp"), small); // アイコンには作らない
+    assert.equal(await ensureVariants(dir), 6);
+    assert.deepEqual(readdirSync(dir).sort(), [
+      "01.webp", "01@1200.webp", "01@600.webp", "01@bg.webp",
+      "02.webp", "02@1200.webp", "02@600.webp", "02@bg.webp", "icon.webp",
+    ]);
+    const width = async (name) => (await sharp(join(dir, name)).metadata()).width;
+    assert.equal(await width("01@600.webp"), 600);
+    assert.equal(await width("01@1200.webp"), 1200);
+    assert.equal(await width("01@bg.webp"), 48);
+    assert.equal(await width("02@1200.webp"), 900, "元より大きくしない");
+    // 2回目は何も作らない
+    assert.equal(await ensureVariants(dir), 0);
+    // 元を差し替えたら（新しくなったら）その写真の分だけ作り直す
+    const later = new Date(statSync(join(dir, "01@600.webp")).mtimeMs + 5000);
+    utimesSync(join(dir, "01.webp"), later, later);
+    assert.equal(await ensureVariants(dir), 3);
+    // フォルダが無ければ何もしない
+    assert.equal(await ensureVariants(join(dir, "none")), 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

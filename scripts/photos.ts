@@ -13,7 +13,7 @@ import { google } from 'googleapis'
 import type { GoogleAuth, JWT } from 'google-auth-library'
 import sharp from 'sharp'
 import heicConvert from 'heic-convert'
-import { mkdir, writeFile, readFile, readdir, access } from 'node:fs/promises'
+import { mkdir, writeFile, readFile, readdir, access, stat } from 'node:fs/promises'
 import path from 'node:path'
 
 type Auth = GoogleAuth | JWT
@@ -265,6 +265,49 @@ async function processImage(
   return { data, ...stat }
 }
 
+/**
+ * 表示用の縮小版。写真（01.webp …）1枚ごとに、同じフォルダへ次を置く。
+ *   01@600.webp   一覧のタイル・ヒーローの初回表示
+ *   01@1200.webp  ヒーロー（スマホの高解像度画面）
+ *   01@bg.webp    ヒーローの背面に敷くぼかし。幅48を拡大して使うので、CSS の blur が要らない
+ * 元（01.webp）から作るので、Drive 経由の団体も手元コピーの団体も同じように揃う。
+ * 元より古い版だけ作り直す。拡大はしない
+ */
+export const VARIANTS = [
+  { suffix: '@600', width: 600, quality: 82 },
+  { suffix: '@1200', width: 1200, quality: 84 },
+  { suffix: '@bg', width: 48, quality: 70, blur: 1 },
+] as const
+
+export async function ensureVariants(outDir: string): Promise<number> {
+  let names: string[]
+  try {
+    names = await readdir(outDir)
+  } catch {
+    return 0
+  }
+  let made = 0
+  for (const name of names.filter((n) => /^\d{2}\.webp$/.test(n))) {
+    const src = path.join(outDir, name)
+    const srcTime = (await stat(src)).mtimeMs
+    for (const v of VARIANTS) {
+      const dest = path.join(outDir, name.replace(/\.webp$/, `${v.suffix}.webp`))
+      const fresh = await stat(dest).then((d) => d.mtimeMs >= srcTime).catch(() => false)
+      if (fresh) continue
+      try {
+        let img = sharp(src).resize({ width: v.width, withoutEnlargement: true })
+        if ('blur' in v) img = img.blur(v.blur)
+        await img.webp({ quality: v.quality, effort: 6 }).toFile(dest)
+        made += 1
+      } catch {
+        // 読めない1枚のために、ほかの写真や sync 全体を止めない。
+        // 元が読めない写真はブラウザでも読めないので、表示側は読み込み失敗として頭文字タイルに落ちる
+      }
+    }
+  }
+  return made
+}
+
 /** すでにディスクにある画像を拾う（スプレッドシートが空のときの保険） */
 async function existingFiles(outDir: string, slug: string): Promise<CirclePhotos> {
   const result: CirclePhotos = { icon: null, photos: [], stats: [], failures: [] }
@@ -340,6 +383,8 @@ export async function syncCirclePhotos(
   if (iconIds.length === 0 && photoIds.length === 0) {
     const kept = await existingFiles(outDir, slug)
     kept.stats = statsFor(kept, prevStats)
+    // 手で置いた写真にも縮小版を用意する
+    await ensureVariants(outDir)
     return kept
   }
 
@@ -432,5 +477,6 @@ export async function syncCirclePhotos(
   }
   result.stats = statsFor(result, mergedStats)
   result.failures = failures
+  await ensureVariants(outDir)
   return result
 }

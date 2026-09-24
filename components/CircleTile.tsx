@@ -3,10 +3,29 @@
 import { useState } from "react";
 import type { Circle } from "@/types/circle";
 import InitialTile from "@/components/InitialTile";
-import { genreColor, photoSrc } from "@/lib/design";
+import { genreColor, photoSrc, photoSrcSet } from "@/lib/design";
 import type { TileShape } from "@/lib/tile-layout";
 
-export default function CircleTile({ circle, shape }: { circle: Circle; shape: TileShape }) {
+/**
+ * タイルが画面で占める幅。app/globals.css の .circle-grid に合わせる
+ * （スマホは2列、768px 以上は最大 960px の4列。wide / large は2列ぶん）
+ */
+const SIZES: Record<TileShape, string> = {
+  square: "(min-width: 960px) 240px, (min-width: 768px) 25vw, 50vw",
+  wide: "(min-width: 960px) 480px, (min-width: 768px) 50vw, 100vw",
+  large: "(min-width: 960px) 480px, (min-width: 768px) 50vw, 100vw",
+};
+
+export default function CircleTile({
+  circle,
+  shape,
+  priority = false,
+}: {
+  circle: Circle;
+  shape: TileShape;
+  /** 最初の画面に入るタイル。遅延読み込みにしない（LCP を遅らせないため） */
+  priority?: boolean;
+}) {
   const [sourceIndex, setSourceIndex] = useState(0);
   // 詳細ヒーローと同じ写真を優先し、写真がない団体だけアイコンを使う。
   const sources = [circle.photos[0], circle.icon].filter(
@@ -27,10 +46,13 @@ export default function CircleTile({ circle, shape }: { circle: Circle; shape: T
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={photoSrc(file, "thumb")}
+          srcSet={photoSrcSet(file)}
+          sizes={SIZES[shape]}
           alt=""
           width={600}
           height={400}
-          loading="lazy"
+          loading={priority ? "eager" : "lazy"}
+          fetchPriority={priority ? "high" : undefined}
           onError={() => setSourceIndex((index) => index + 1)}
         />
       ) : (

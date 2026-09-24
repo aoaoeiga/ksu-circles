@@ -94,7 +94,7 @@ export default function PhotoTile({
           pointerEvents: "none",
           width: "100%",
           padding: namePadding,
-          fontFamily: "'Zen Kaku Gothic New',sans-serif",
+          fontFamily: "var(--font-zen), sans-serif",
           fontWeight: 700,
           fontSize: hasPhoto ? nameSize : nameSizeNoPhoto,
           lineHeight: 1.36,

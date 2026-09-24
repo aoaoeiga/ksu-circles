@@ -13,7 +13,7 @@ import { DAY_LABELS } from "@/lib/gender";
 import { easeText, multiText, seniorCallText } from "@/lib/labels";
 
 const big = (color: string) => ({
-  fontFamily: "'Zen Kaku Gothic New',sans-serif",
+  fontFamily: "var(--font-zen), sans-serif",
   fontWeight: 700,
   fontSize: 30,
   lineHeight: 1.25,
@@ -55,7 +55,10 @@ function Card({ circle, matched }: { circle: Circle; matched: number[] }) {
       <div style={EYEBROW}>活動日</div>
 
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", marginTop: 12 }}>
-        {days.length === 0 ? (
+        {days.length === 0 && circle.days_undecided ? (
+          // 「曜日は決まっていない」と聞けている。未確認とは別。聞けたことなので主色で出す
+          <div style={big(INK)}>不定期</div>
+        ) : days.length === 0 ? (
           // 未確認でも 30px のまま出す。小さくして誤魔化さない（docs/ui/07-content.md §3）
           <div style={big(INK_MID)}>活動日 未確認</div>
         ) : (
