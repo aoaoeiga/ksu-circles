@@ -34,10 +34,17 @@
         "website": "http://kouyamapokecir.blog.fc2.com/"
       },
       "icon": null,
-      "photos": [],
+      "photos": [
+        "/circles/c014/01.webp",
+        "/circles/c014/03.webp"
+      ],
       "tile_size": "M",
       "listed": true,
-      "og_image": null
+      "og_image": {
+        "src": "/circles/c014/01.webp",
+        "width": 1179,
+        "height": 786
+      }
     },
     {
       "id": "c047",
