@@ -74,10 +74,20 @@
         "website": null
       },
       "icon": null,
-      "photos": [],
+      "photos": [
+        "/circles/c047/01.webp",
+        "/circles/c047/02.webp",
+        "/circles/c047/03.webp",
+        "/circles/c047/04.webp",
+        "/circles/c047/05.webp"
+      ],
       "tile_size": "M",
       "listed": true,
-      "og_image": null
+      "og_image": {
+        "src": "/circles/c047/01.webp",
+        "width": 1477,
+        "height": 985
+      }
     },
     {
       "id": "c054",
