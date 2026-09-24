@@ -97,6 +97,56 @@
       }
     },
     {
+      "id": "c053",
+      "short_name": "むすびのかみ京都産業大学組",
+      "name": "よさこいサークルむすびのかみ京都産業大学組",
+      "division": "文化系",
+      "category": "届出団体",
+      "genre": "文化・創作",
+      "one_liner": "みんなで、ひとつの演舞を。",
+      "active_days": [
+        2,
+        5
+      ],
+      "days_undecided": false,
+      "frequency": null,
+      "place": "天地館前の広場",
+      "annual_fee": 70000,
+      "member_count": 50,
+      "beginner_count": null,
+      "first_year_count": null,
+      "male_ratio": 0,
+      "ease": "大丈夫(お祭り前は毎日あったりもするのでそこはできるだけ参加)",
+      "senior_call": "個人による",
+      "multi_club": "条件つき / 神山実行委員会とはできないです！",
+      "description": "よさこいを踊るサークルです。\n活動は水曜と土曜で、天地館前の広場に集まっています。\nお祭りの前は、毎日活動することもあります。\n遠征やイベントもあります。大変なことも多い分、やり遂げたときの達成感があります。",
+      "leader_comment": {
+        "text": "京産と言えばむすびのかみ！",
+        "role": "広報担当（3年）"
+      },
+      "recruiting": null,
+      "surveyed_at": "2026-09-24",
+      "sns": {
+        "instagram": "https://www.instagram.com/musubinokami_ksu?stkn=MWxmbGZvNDVudTV1dg==",
+        "x": "https://x.com/ksu_musubi?s=21",
+        "website": null
+      },
+      "icon": "/circles/c053/icon.webp",
+      "photos": [
+        "/circles/c053/01.webp",
+        "/circles/c053/02.webp",
+        "/circles/c053/03.webp",
+        "/circles/c053/04.webp"
+      ],
+      "tile_size": "M",
+      "listed": true,
+      "og_image": {
+        "src": "/circles/c053/01.webp",
+        "width": 1567,
+        "height": 1044
+      }
+    },
+    {
       "id": "c054",
       "short_name": "ゆとらん",
       "name": "陸上競技同好会　ゆとらん",
@@ -289,6 +339,46 @@
         "width": 1108,
         "height": 738
       }
+    },
+    {
+      "id": "c134",
+      "short_name": "GameConnect",
+      "name": "eスポーツサークル「GameConnect」",
+      "division": "文化系",
+      "category": "委員会・その他",
+      "genre": "その他",
+      "one_liner": "好きなゲームで、つながる。",
+      "active_days": [
+        5
+      ],
+      "days_undecided": false,
+      "frequency": null,
+      "place": "オンライン",
+      "annual_fee": 0,
+      "member_count": 22,
+      "beginner_count": 11,
+      "first_year_count": null,
+      "male_ratio": 100,
+      "ease": "大丈夫",
+      "senior_call": "個人による",
+      "multi_club": "いる",
+      "description": "eスポーツのサークルです。\n主に遊んでいるのは、Apex、ストリートファイター6、スマブラ、LoL、VALORANTです。\n活動はオンラインで、土曜に行っています。",
+      "leader_comment": {
+        "text": "ゲームが好きな人、強くなりたい人大歓迎です！",
+        "role": "代表"
+      },
+      "recruiting": "いつでも入れる",
+      "surveyed_at": "2026-09-24",
+      "sns": {
+        "instagram": "https://www.instagram.com/gameconnect_ksu/",
+        "x": null,
+        "website": null
+      },
+      "icon": null,
+      "photos": [],
+      "tile_size": "M",
+      "listed": true,
+      "og_image": null
     }
   ]
 }

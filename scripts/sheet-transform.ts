@@ -189,7 +189,7 @@ function toISODate(value: SheetCell | undefined): { date: string | null; ambiguo
 function cleanRole(raw: string | null, warn: (message: string) => void): string {
   const normalized = (raw ?? "").normalize("NFKC").trim();
   if (!normalized) return "代表";
-  const roles = "代表|副代表|部長|副部長|主将|副主将|主務|副主務|会計|代表者|会長|幹事長|マネージャー";
+  const roles = "代表者|副代表|代表|副部長|部長|副主将|主将|副主務|主務|会計|広報担当|広報|会長|幹事長|マネージャー";
   // 学年は「3年」のほか、関西で使う「3回生」も読む。役職との間の「・」も許す（例: 主務・2回生）
   const exact = new RegExp(`^\\s*(${roles})\\s*[・･]?\\s*[（(]?\\s*(\\d)\\s*(?:年|回生)?\\s*[)）]?\\s*$`).exec(normalized);
   if (exact) return `${exact[1]}（${exact[2]}年）`;
