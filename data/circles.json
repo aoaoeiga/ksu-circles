@@ -36,7 +36,8 @@
       "icon": null,
       "photos": [],
       "tile_size": "M",
-      "listed": true
+      "listed": true,
+      "og_image": null
     },
     {
       "id": "c047",
@@ -75,7 +76,8 @@
       "icon": null,
       "photos": [],
       "tile_size": "M",
-      "listed": true
+      "listed": true,
+      "og_image": null
     },
     {
       "id": "c054",
@@ -122,7 +124,12 @@
         "/circles/c054/05.webp"
       ],
       "tile_size": "L",
-      "listed": true
+      "listed": true,
+      "og_image": {
+        "src": "/circles/c054/01.webp",
+        "width": 1200,
+        "height": 800
+      }
     },
     {
       "id": "c055",
@@ -161,7 +168,12 @@
         "/circles/c055/01.webp"
       ],
       "tile_size": "M",
-      "listed": true
+      "listed": true,
+      "og_image": {
+        "src": "/circles/c055/01.webp",
+        "width": 1182,
+        "height": 788
+      }
     },
     {
       "id": "c056",
@@ -203,7 +215,12 @@
         "/circles/c056/04.webp"
       ],
       "tile_size": "M",
-      "listed": true
+      "listed": true,
+      "og_image": {
+        "src": "/circles/c056/01.webp",
+        "width": 1600,
+        "height": 1067
+      }
     },
     {
       "id": "c058",
@@ -249,7 +266,12 @@
         "/circles/c058/03.webp"
       ],
       "tile_size": "M",
-      "listed": true
+      "listed": true,
+      "og_image": {
+        "src": "/circles/c058/01.webp",
+        "width": 1108,
+        "height": 738
+      }
     }
   ]
 }
