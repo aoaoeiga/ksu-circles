@@ -22,7 +22,6 @@ import {
   SHADOW,
   WHITE,
   num,
-  photoSrc,
 } from "@/lib/design";
 import { recruitingLabel, surveyedText } from "@/lib/labels";
 import Hero from "@/components/Hero";
@@ -40,8 +39,6 @@ export async function generateMetadata(props: PageProps<"/c/[id]">): Promise<Met
   const { id } = await props.params;
   const c = getCircle(id);
   if (!c) return {};
-  const ogFile = c.photos[0] ?? c.icon ?? null;
-  const ogUsesPhoto = c.photos.length > 0;
   return {
     title: `${c.short_name} | 京産大サークル名鑑`,
     description: c.one_liner,
@@ -51,18 +48,21 @@ export async function generateMetadata(props: PageProps<"/c/[id]">): Promise<Met
     ...(c.listed
       ? {}
       : { robots: { index: false, follow: false, googleBot: { index: false, follow: false } } }),
-    openGraph: ogFile
+    // 大きさは sync が実ファイルから測った値。URL は layout の metadataBase で絶対 URL になる
+    ...(c.og_image
       ? {
-          images: [
-            {
-              url: photoSrc(ogFile),
-              width: ogUsesPhoto ? 1200 : 400,
-              height: ogUsesPhoto ? 800 : 400,
-              alt: c.short_name,
-            },
-          ],
+          openGraph: {
+            images: [
+              {
+                url: c.og_image.src,
+                width: c.og_image.width,
+                height: c.og_image.height,
+                alt: c.short_name,
+              },
+            ],
+          },
         }
-      : undefined,
+      : {}),
   };
 }
 

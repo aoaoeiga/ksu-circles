@@ -83,7 +83,8 @@ test("新しいCircle型へ完全変換する", () => {
     icon: "c901-icon.webp",
     photos: ["c901-1.webp", "c901-2.webp"],
     tile_size: "L",
-    listed: true
+    listed: true,
+    og_image: null
   });
   assert.deepEqual(
     Object.keys(result.circles[0]),
@@ -92,7 +93,7 @@ test("新しいCircle型へ完全変換する", () => {
       "active_days", "days_undecided", "frequency", "place", "annual_fee",
       "member_count", "beginner_count", "first_year_count", "male_ratio", "ease",
       "senior_call", "multi_club", "description", "leader_comment", "recruiting",
-      "surveyed_at", "sns", "icon", "photos", "tile_size", "listed"
+      "surveyed_at", "sns", "icon", "photos", "tile_size", "listed", "og_image"
     ]
   );
 });

@@ -12,6 +12,7 @@
 
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import sharp from "sharp";
 import { createInterface } from "node:readline/promises";
 import { GoogleAuth, Impersonated, JWT, type AuthClient } from "google-auth-library";
 import type { Circle, CircleFile } from "../types/circle.ts";
@@ -215,6 +216,24 @@ function scanCircleDir(slug: string): CirclePhotos {
  * **新しいほう（public/circles）を優先し、無ければ古いほう（public/photos）に落とす。**
  * どちらのファイルも消さない。Drive の取得に失敗しても、ディスクにあるものは出し続ける。
  */
+/**
+ * OGP に使う画像（写真の1枚目、無ければアイコン）の大きさを測る。
+ * パスは lib/design.ts の photoSrc() と同じ規則で public/ 以下に引き当てる
+ */
+async function measureOgImage(circle: Circle): Promise<Circle["og_image"]> {
+  const file = circle.photos[0] ?? circle.icon;
+  if (!file) return null;
+  const src = file.startsWith("/") ? file : `/photos/${file}`;
+  try {
+    const { width, height } = await sharp(path.join(PUBLIC_DIR, src)).metadata();
+    if (!width || !height) return null;
+    return { src, width, height };
+  } catch {
+    console.warn(`  ${circle.id}  OGP 画像 ${src} の大きさを測れなかった（og:image を出さない）`);
+    return null;
+  }
+}
+
 async function resolvePhotos(
   auth: AuthClient,
   sources: Map<string, PhotoSourceCells>,
@@ -455,6 +474,9 @@ async function main(): Promise<void> {
       ].join("\n")
     );
   }
+
+  // OGP の画像の大きさを実ファイルから測る。固定値だと実際の画像と食い違う
+  for (const circle of result.circles) circle.og_image = await measureOgImage(circle);
 
   const payload: CircleFile = {
     _note:

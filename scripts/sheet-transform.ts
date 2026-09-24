@@ -500,6 +500,8 @@ export function transformSheets(input: SheetInput, options: TransformOptions = {
       photos,
       tile_size: tileSize,
       listed,
+      // 画像の大きさは実ファイルを測らないと分からないので、sync.ts が埋める
+      og_image: null,
     };
     circles.push(circle);
   }

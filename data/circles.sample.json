@@ -29,7 +29,8 @@
       "icon": null,
       "photos": [],
       "tile_size": "M",
-      "listed": true
+      "listed": true,
+      "og_image": null
     },
     {
       "id": "c902",
@@ -59,7 +60,8 @@
       "icon": null,
       "photos": [],
       "tile_size": "S",
-      "listed": true
+      "listed": true,
+      "og_image": null
     },
     {
       "id": "c903",
@@ -89,7 +91,8 @@
       "icon": "c903-icon.webp",
       "photos": [],
       "tile_size": "M",
-      "listed": true
+      "listed": true,
+      "og_image": null
     },
     {
       "id": "c904",
@@ -119,7 +122,8 @@
       "icon": null,
       "photos": ["c904-1.webp", "c904-2.webp"],
       "tile_size": "L",
-      "listed": true
+      "listed": true,
+      "og_image": null
     },
     {
       "id": "c905",
@@ -149,7 +153,8 @@
       "icon": null,
       "photos": [],
       "tile_size": "M",
-      "listed": true
+      "listed": true,
+      "og_image": null
     },
     {
       "id": "c906",
@@ -179,7 +184,8 @@
       "icon": null,
       "photos": [],
       "tile_size": "M",
-      "listed": true
+      "listed": true,
+      "og_image": null
     },
     {
       "id": "c907",
@@ -209,7 +215,8 @@
       "icon": null,
       "photos": [],
       "tile_size": "S",
-      "listed": true
+      "listed": true,
+      "og_image": null
     },
     {
       "id": "c908",
@@ -239,7 +246,8 @@
       "icon": "c908-icon.webp",
       "photos": ["c908-1.webp", "c908-2.webp"],
       "tile_size": "L",
-      "listed": true
+      "listed": true,
+      "og_image": null
     }
   ]
 }

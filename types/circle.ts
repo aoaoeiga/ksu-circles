@@ -75,6 +75,12 @@ export type Circle = {
    * 判定は sync 側（scripts/sheet-transform.ts）で行う
    */
   listed: boolean;
+
+  /**
+   * OGP に使う画像と、その実際の大きさ（px）。photos の1枚目、無ければ icon。どちらも無ければ null。
+   * sync が public/ の実ファイルを測って入れる（画面側で画像を読まずに済むように）
+   */
+  og_image: { src: string; width: number; height: number } | null;
 };
 
 export type CircleFile = { _note?: string; circles: Circle[] };
