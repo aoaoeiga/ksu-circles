@@ -463,6 +463,8 @@ test("役職: 主務や「2回生」の書き方を、個人名と取り違え�
   };
   assert.deepEqual(roleOf("主務・2回生"), ["主務（2年）", false]);
   assert.deepEqual(roleOf("副部長 3回生"), ["副部長（3年）", false]);
+  assert.deepEqual(roleOf("広報担当・3回生"), ["広報担当（3年）", false]);
+  assert.deepEqual(roleOf("代表者"), ["代表者", false]);
   assert.deepEqual(roleOf("代表（3年）"), ["代表（3年）", false]);
   // 個人名が入っていれば、これまでどおり置き換えて知らせる
   assert.deepEqual(roleOf("主務 架空花子 2回生"), ["主務（2年）", true]);
