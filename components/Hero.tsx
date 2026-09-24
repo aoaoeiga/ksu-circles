@@ -14,7 +14,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import type { Circle } from "@/types/circle";
-import { BG, EASE, INK, PHOTO, RULE, genreColor, photoSrc } from "@/lib/design";
+import { BG, BUTTON_RESET, EASE, INK, PHOTO, RULE, genreColor, photoBgSrc, photoSrc, photoSrcSet } from "@/lib/design";
 import { divisionText } from "@/lib/labels";
 import InitialTile from "@/components/InitialTile";
 import { playHeroEnter, playHeroExit } from "@/lib/flip";
@@ -59,7 +59,7 @@ export default function Hero({ circle }: { circle: Circle }) {
     if (!firstFile) return;
     const img = new window.Image();
     img.onload = () => setHiResFile(firstFile);
-    img.src = photoSrc(firstFile);
+    img.src = photoSrc(firstFile, "large");
     return () => {
       img.onload = null;
     };
@@ -223,14 +223,16 @@ export default function Hero({ circle }: { circle: Circle }) {
             padding: "0 20px",
           }}
         >
-          <div
+          <button
+            type="button"
             onClick={back}
-            role="link"
-            tabIndex={0}
+            aria-label="一覧へ戻る"
             style={{
+              ...BUTTON_RESET,
               display: "flex",
               alignItems: "center",
               height: 44,
+              minWidth: 44,
               fontSize: 13,
               color: INK,
               cursor: "pointer",
@@ -238,7 +240,7 @@ export default function Hero({ circle }: { circle: Circle }) {
             }}
           >
             ⟨ 一覧
-          </div>
+          </button>
           <div
             style={{
               flex: 1,
@@ -312,9 +314,34 @@ export default function Hero({ circle }: { circle: Circle }) {
                       : undefined,
                 }}
               >
+                {/* 背面: 同じ写真をぼかして画面いっぱいに敷く。前面で切らずに出した写真の上下（PCでは左右）を埋める。
+                    縮小版（幅48）を引き伸ばしてぼかしの代わりにする。CSS の blur はズーム中に毎フレーム描き直しになるので、
+                    縮小版が無い写真のときだけ使う */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={i === 0 && !firstHiRes ? photoSrc(file, "thumb") : photoSrc(file)}
+                  src={photoBgSrc(file) ?? photoSrc(file, "thumb")}
+                  alt=""
+                  aria-hidden="true"
+                  width={48}
+                  height={32}
+                  loading={i === 0 ? "eager" : "lazy"}
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    display: "block",
+                    transform: "scale(1.08)",
+                    filter: photoBgSrc(file) ? "brightness(.62)" : "blur(24px) brightness(.62)",
+                  }}
+                />
+                {/* 前面: 写真を切らずに全体を出す（3:2 を縦長の画面いっぱいに切ると、横幅の約3割しか見えなかった） */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={i === 0 && !firstHiRes ? photoSrc(file, "thumb") : photoSrc(file, "large")}
+                  srcSet={i === 0 && !firstHiRes ? undefined : photoSrcSet(file)}
+                  sizes="(min-width: 960px) 960px, 100vw"
                   alt=""
                   width={1200}
                   height={800}
@@ -326,7 +353,7 @@ export default function Hero({ circle }: { circle: Circle }) {
                     inset: 0,
                     width: "100%",
                     height: "100%",
-                    objectFit: "cover",
+                    objectFit: "contain",
                     display: "block",
                   }}
                 />
@@ -349,16 +376,16 @@ export default function Hero({ circle }: { circle: Circle }) {
           }}
         />
 
-        <motion.div
+        <motion.button
+          type="button"
           data-hero-chrome=""
           initial={reduced ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={reduced ? { duration: 0 } : DETAIL_REVEAL_TRANSITION}
           onClick={back}
-          role="link"
-          tabIndex={0}
           aria-label="一覧へ戻る"
           style={{
+            ...BUTTON_RESET,
             position: "absolute",
             left: 20,
             top: 20,
@@ -374,7 +401,7 @@ export default function Hero({ circle }: { circle: Circle }) {
           }}
         >
           ⟨
-        </motion.div>
+        </motion.button>
 
         <motion.div
           data-hero-chrome=""
@@ -399,21 +426,23 @@ export default function Hero({ circle }: { circle: Circle }) {
                     alignItems: "center",
                     gap: 0,
                     marginBottom: 4,
-                    marginLeft: -8,
+                    // 押せる範囲は 44px 幅。見た目の点（5px）を本文の左端にそろえる
+                    marginLeft: -20,
                   }
                 : { display: "none" }
             }
           >
             {showCarousel &&
               photos.map((file, i) => (
-                <div
+                <button
+                  type="button"
                   key={file}
                   onClick={() => goSlide(i)}
-                  role="button"
-                  tabIndex={0}
                   aria-label={`${i + 1}枚目`}
+                  aria-current={i === idx ? "true" : undefined}
                   style={{
-                    width: 20,
+                    ...BUTTON_RESET,
+                    width: 44,
                     height: 44,
                     display: "flex",
                     alignItems: "center",
@@ -449,9 +478,10 @@ export default function Hero({ circle }: { circle: Circle }) {
                       }
                     />
                   </div>
-                </div>
+                </button>
               ))}
-            <div
+            <button
+              type="button"
               onClick={() => {
                 if (autoplay) stopAuto();
                 else {
@@ -459,12 +489,11 @@ export default function Hero({ circle }: { circle: Circle }) {
                   setAutoplay(true);
                 }
               }}
-              role="button"
-              tabIndex={0}
               aria-label={auto ? "自動送りを止める" : "自動送りを再開する"}
               style={
                 showCarousel
                   ? {
+                      ...BUTTON_RESET,
                       width: 44,
                       height: 44,
                       display: "flex",
@@ -479,7 +508,7 @@ export default function Hero({ circle }: { circle: Circle }) {
               }
             >
               {auto ? "⏸" : "▶"}
-            </div>
+            </button>
           </div>
 
           <div
@@ -496,7 +525,7 @@ export default function Hero({ circle }: { circle: Circle }) {
           </div>
           <div
             style={{
-              fontFamily: "'Zen Kaku Gothic New',sans-serif",
+              fontFamily: "var(--font-zen), sans-serif",
               fontWeight: 700,
               fontSize: hasPhoto ? 40 : 46,
               lineHeight: 1.22,

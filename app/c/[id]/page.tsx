@@ -75,7 +75,7 @@ export default async function CirclePage(props: PageProps<"/c/[id]">) {
   const bigNum = num(28);
   const dash = num(28, INK_MID);
   const wordNum = {
-    fontFamily: "'Noto Sans JP',sans-serif",
+    fontFamily: "var(--font-noto), sans-serif",
     fontWeight: 500,
     fontSize: 16,
     color: INK,
@@ -172,7 +172,7 @@ export default async function CirclePage(props: PageProps<"/c/[id]">) {
         <div style={{ padding: "22px 20px 0" }}>
           <div
             style={{
-              fontFamily: "'Zen Kaku Gothic New',sans-serif",
+              fontFamily: "var(--font-zen), sans-serif",
               fontWeight: 700,
               fontSize: 20,
               lineHeight: 1.6,
@@ -302,17 +302,8 @@ export default async function CirclePage(props: PageProps<"/c/[id]">) {
         <div style={{ fontSize: 11, color: "rgba(255,255,255,.6)" }}>
           {surveyedText(c.surveyed_at)}
         </div>
-        <a
-          href="#"
-          style={{
-            fontSize: 12,
-            color: "#FFFFFF",
-            textDecoration: "underline",
-            width: "max-content",
-          }}
-        >
-          情報の修正・取り下げはこちら
-        </a>
+        {/* 「情報の修正・取り下げはこちら」は行き先（フォーム）が決まるまで出さない。
+            href="#" のままだと押しても何も起きず、代表が一番探すリンクで迷わせる（docs/ui-audit-2026-09-24.md B5） */}
         <div style={{ fontSize: 11, color: "rgba(255,255,255,.5)" }}>京産大サークル名鑑 2026</div>
         </div>
       </DetailReveal>

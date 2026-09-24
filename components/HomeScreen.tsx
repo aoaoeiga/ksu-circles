@@ -15,6 +15,7 @@ import type { Circle } from "@/types/circle";
 import {
   BG,
   BIG_BTN,
+  BUTTON_RESET,
   CATS,
   DAY_ORDER,
   EASE,
@@ -253,7 +254,7 @@ export default function HomeScreen({
       >
         <div
           style={{
-            fontFamily: "'Zen Kaku Gothic New',sans-serif",
+            fontFamily: "var(--font-zen), sans-serif",
             fontWeight: 700,
             fontSize: 15,
             letterSpacing: "-0.04em",
@@ -268,7 +269,7 @@ export default function HomeScreen({
         <h1
           style={{
             margin: 0,
-            fontFamily: "'Zen Kaku Gothic New',sans-serif",
+            fontFamily: "var(--font-zen), sans-serif",
             fontWeight: 700,
             fontSize: 48,
             lineHeight: 1.15,
@@ -330,7 +331,7 @@ export default function HomeScreen({
             <h2
               style={{
                 margin: "6px 0 0",
-                fontFamily: "'Schibsted Grotesk',sans-serif",
+                fontFamily: "var(--font-schibsted), sans-serif",
                 fontWeight: 700,
                 fontSize: 32,
                 letterSpacing: "-0.03em",
@@ -348,7 +349,7 @@ export default function HomeScreen({
           <div style={{ padding: "56px 8px", textAlign: "center" }}>
             <div
               style={{
-                fontFamily: "'Zen Kaku Gothic New',sans-serif",
+                fontFamily: "var(--font-zen), sans-serif",
                 fontWeight: 700,
                 fontSize: 18,
                 letterSpacing: "-0.04em",
@@ -364,7 +365,7 @@ export default function HomeScreen({
         )}
 
         <div className="circle-grid">
-          {visible.map((id) => {
+          {visible.map((id, order) => {
             const o = byId[id];
             if (!o) return null;
             const going = leaving.indexOf(o.id) >= 0;
@@ -384,7 +385,8 @@ export default function HomeScreen({
                   transition: going ? "opacity 180ms ease-out, transform 180ms ease-out" : undefined,
                 }}
               >
-                <CircleTile circle={o} shape={shape} />
+                {/* 先頭の3枚は最初の画面に入る（390px 幅で実測）。遅延読み込みにしない */}
+                <CircleTile circle={o} shape={shape} priority={order < 3} />
               </Link>
             );
           })}
@@ -399,7 +401,7 @@ export default function HomeScreen({
           background: `linear-gradient(to top,${BG} 62%,rgba(239,239,235,0))`,
         }}
       >
-        <div onClick={() => setSheetOpen(true)} style={BIG_BTN} role="button" tabIndex={0}>
+        <button type="button" onClick={() => setSheetOpen(true)} style={{ ...BUTTON_RESET, ...BIG_BTN, width: "100%" }}>
           <span>絞り込み</span>
           <span>•</span>
           {filterCount > 0 && (
@@ -419,7 +421,7 @@ export default function HomeScreen({
               {filterCount}
             </span>
           )}
-        </div>
+        </button>
       </div>
 
       {sheetOpen && (
@@ -458,7 +460,7 @@ export default function HomeScreen({
             >
               <div
                 style={{
-                  fontFamily: "'Zen Kaku Gothic New',sans-serif",
+                  fontFamily: "var(--font-zen), sans-serif",
                   fontWeight: 700,
                   fontSize: 18,
                   letterSpacing: "-0.04em",
@@ -467,12 +469,13 @@ export default function HomeScreen({
               >
                 絞り込み
               </div>
-              <div
+              <button
+                type="button"
                 onClick={() => setSheetOpen(false)}
-                style={{ fontSize: 13, color: INK_MID, cursor: "pointer", padding: "8px 4px" }}
+                style={{ ...BUTTON_RESET, fontSize: 13, color: INK_MID, cursor: "pointer", padding: "12px 8px", minHeight: 44 }}
               >
                 閉じる
-              </div>
+              </button>
             </div>
 
             <div style={{ overflowY: "auto", padding: "6px 20px 22px" }}>
@@ -481,10 +484,13 @@ export default function HomeScreen({
                 {DAY_ORDER.map((dayIdx) => {
                   const on = f.days.indexOf(dayIdx) >= 0;
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={dayIdx}
+                      aria-pressed={on}
                       onClick={() => toggleIn("days", dayIdx)}
                       style={{
+                        ...BUTTON_RESET,
                         width: 44,
                         height: 44,
                         display: "flex",
@@ -499,7 +505,7 @@ export default function HomeScreen({
                       }}
                     >
                       {DAY_LABELS[dayIdx]}
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -507,23 +513,27 @@ export default function HomeScreen({
               <SheetHeading top>区分</SheetHeading>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
                 {CATS.map((c) => (
-                  <div
+                  <button
+                    type="button"
                     key={c}
+                    aria-pressed={f.cats.indexOf(c) >= 0}
                     onClick={() => toggleIn("cats", c)}
-                    style={chipStyle(f.cats.indexOf(c) >= 0)}
+                    style={{ ...BUTTON_RESET, ...chipStyle(f.cats.indexOf(c) >= 0) }}
                   >
                     {c}
-                  </div>
+                  </button>
                 ))}
               </div>
 
               <SheetHeading top>ジャンル</SheetHeading>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
                 {GENRES.map((c) => (
-                  <div
+                  <button
+                    type="button"
                     key={c}
+                    aria-pressed={f.genres.indexOf(c) >= 0}
                     onClick={() => toggleIn("genres", c)}
-                    style={chipStyle(f.genres.indexOf(c) >= 0)}
+                    style={{ ...BUTTON_RESET, ...chipStyle(f.genres.indexOf(c) >= 0) }}
                   >
                     <div
                       style={{
@@ -535,23 +545,34 @@ export default function HomeScreen({
                       }}
                     />
                     <span>{c}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
 
               <SheetHeading top>年会費</SheetHeading>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
                 {FEES.map((c) => (
-                  <div key={c} onClick={() => applyFilters({ fee: c })} style={chipStyle(f.fee === c)}>
+                  <button
+                    type="button"
+                    key={c}
+                    aria-pressed={f.fee === c}
+                    onClick={() => applyFilters({ fee: c })}
+                    style={{ ...BUTTON_RESET, ...chipStyle(f.fee === c) }}
+                  >
                     {c}
-                  </div>
+                  </button>
                 ))}
               </div>
 
               <div style={{ marginTop: 26, borderTop: "1px solid " + RULE }}>
-                <div
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={f.beginner}
                   onClick={() => applyFilters({ beginner: !f.beginner })}
                   style={{
+                    ...BUTTON_RESET,
+                    width: "100%",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
@@ -564,7 +585,7 @@ export default function HomeScreen({
                   <div style={switchTrack(f.beginner)}>
                     <div style={switchKnob(f.beginner)} />
                   </div>
-                </div>
+                </button>
               </div>
             </div>
 
@@ -577,9 +598,11 @@ export default function HomeScreen({
                 background: BG,
               }}
             >
-              <div
+              <button
+                type="button"
                 onClick={() => applyFilters(EMPTY_FILTERS)}
                 style={{
+                  ...BUTTON_RESET,
                   height: 52,
                   padding: "0 16px",
                   display: "flex",
@@ -591,13 +614,14 @@ export default function HomeScreen({
                 }}
               >
                 条件をクリア
-              </div>
-              <div
+              </button>
+              <button
+                type="button"
                 onClick={() => setSheetOpen(false)}
-                style={{ ...BIG_BTN, flex: 1, height: 52 }}
+                style={{ ...BUTTON_RESET, ...BIG_BTN, flex: 1, height: 52 }}
               >
                 {filteredCount}件を表示 •
-              </div>
+              </button>
             </div>
           </div>
         </div>
@@ -610,7 +634,7 @@ function SheetHeading({ children, top }: { children: React.ReactNode; top?: bool
   return (
     <div
       style={{
-        fontFamily: "'Zen Kaku Gothic New',sans-serif",
+        fontFamily: "var(--font-zen), sans-serif",
         fontWeight: 700,
         fontSize: 14,
         color: INK,

@@ -3,6 +3,7 @@ import "./globals.css";
 import { BG } from "@/lib/design";
 import { ALLOW_INDEXING, siteOrigin } from "@/lib/seo";
 import RouteMotion from "@/components/RouteMotion";
+import { fontVariables } from "@/lib/fonts";
 
 export const metadata: Metadata = {
   // OGP などの相対 URL の起点。本番は本番の URL、preview はそのデプロイ自身（lib/seo.ts）
@@ -33,21 +34,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ja">
-      <head>
-        {/* design/ksu-circles-v3.dc.html の <helmet> にあった書体。同じ4ファミリを同じ太さで読む。
-            no-page-custom-font は Pages Router の _document 向けの規則で、
-            App Router のルートレイアウトに置く分には全ページに効くため当てはまらない。
-            next/font に替えると font-family 名が変わり、移植した inline style の指定と
-            合わなくなるので、移植元と同じ <link> のまま置く。 */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@700&family=Zen+Kaku+Gothic+New:wght@500;700&family=Noto+Sans+JP:wght@400;500&family=Outfit:wght@400;500;600&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    // 書体は lib/fonts.ts（next/font）。4つの CSS 変数を <html> で定義し、画面側は var(--font-…) で指定する。
+    // 以前の Google Fonts の <link> は、読み終わるまで描画を止めていた（docs/ui-audit-2026-09-24.md F1）
+    <html lang="ja" className={fontVariables}>
       <body>
         {/* 移植元の外側2枚のラッパ。PCでは中央1カラム（最大960px） */}
         <div

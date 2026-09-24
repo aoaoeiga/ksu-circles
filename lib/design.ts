@@ -9,7 +9,11 @@ import type { CSSProperties } from "react";
 
 /** 移植元の色。名前は docs/ui/06-design-reference.md の呼び名に合わせた */
 export const INK = "#14213A";
-export const INK_MID = "#6B7484";
+/**
+ * 補助の文字色。11px のラベルに使うので、地（#EFEFEB）の上で 4.5:1 以上にする。
+ * 移植元の #6B7484 は 4.09:1 で足りなかった。docs/ui/02-ui-spec.md の ink-mid（#5A6478）に戻して 5.16:1
+ */
+export const INK_MID = "#5A6478";
 export const BG = "#EFEFEB";
 export const RULE = "#E2E2DB";
 export const WHITE = "#FFFFFF";
@@ -74,7 +78,7 @@ export const FEE_ANY: FeeChoice = "指定なし";
 /** 数字の書体。移植元の num() */
 export function num(size: number, color?: string): CSSProperties {
   return {
-    fontFamily: "Outfit, sans-serif",
+    fontFamily: "var(--font-outfit), sans-serif",
     fontWeight: 500,
     fontVariantNumeric: "tabular-nums",
     fontSize: size,
@@ -106,6 +110,21 @@ export function cellStyle(kind: CellKind, i: number): CSSProperties {
     };
   return { ...base, border: "1px solid " + RULE };
 }
+
+/**
+ * <button> の既定の見た目（枠・余白・書体・背景）を消す。div から button に替えても見た目を変えないために、
+ * 各部品の style の先頭で広げる（例: { ...BUTTON_RESET, ...chipStyle(on) }）
+ */
+export const BUTTON_RESET: CSSProperties = {
+  appearance: "none",
+  border: "none",
+  margin: 0,
+  padding: 0,
+  background: "transparent",
+  font: "inherit",
+  color: "inherit",
+  textAlign: "inherit",
+};
 
 /** 絞り込みシートのチップ */
 export function chipStyle(active: boolean): CSSProperties {
@@ -153,7 +172,7 @@ export const BIG_BTN: CSSProperties = {
   color: WHITE,
   cursor: "pointer",
   borderRadius: 999,
-  fontFamily: "'Noto Sans JP',sans-serif",
+  fontFamily: "var(--font-noto), sans-serif",
   fontWeight: 500,
   fontSize: 14,
   letterSpacing: "0.02em",
@@ -177,7 +196,7 @@ export const EYEBROW: CSSProperties = {
 };
 
 export const SECTION_TITLE: CSSProperties = {
-  fontFamily: "'Schibsted Grotesk',sans-serif",
+  fontFamily: "var(--font-schibsted), sans-serif",
   fontWeight: 700,
   fontSize: 32,
   letterSpacing: "-0.03em",
@@ -187,16 +206,41 @@ export const SECTION_TITLE: CSSProperties = {
 };
 
 /**
- * 写真のパス。photos は幅1200と @600、icon は幅400の1枚だけを置く。
- * 一覧のサムネは photos のみ @600 を使う（docs/10-sync-spec.md §5-1）。
+ * 写真のパス。
+ *
+ * 新しい写真（scripts/photos.ts が public/circles/<団体ID>/ に置く）は "/circles/c056/01.webp" の形で来る。
+ * sync が同じフォルダに縮小版を置いている（01@600.webp / 01@1200.webp / 01@bg.webp）。
+ *   thumb  幅600。一覧のタイル、ヒーローの初回表示
+ *   large  幅1200。ヒーロー
+ *   full   元（最大1600）。OGP
+ * アイコン（icon.webp）は縮小版を作らないので、どれを頼んでも元を返す。
+ *
+ * 旧来の public/photos に手で置いたファイルは、ファイル名だけが入っている（docs/10-sync-spec.md §5-1）。
  */
-export function photoSrc(file: string, size: "full" | "thumb" = "full"): string {
-  // 新しい写真（scripts/photos.ts が public/circles/<団体ID>/ に置く）は
-  // "/circles/c056/01.webp" の形で来る。幅600の版は作らないのでそのまま返す。
-  if (file.startsWith("/")) return file;
-  // 旧来の public/photos に手で置いたファイルは、ファイル名だけが入っている
-  if (size === "thumb" && !/-icon\.webp$/.test(file)) {
+export function photoSrc(file: string, size: "full" | "large" | "thumb" = "full"): string {
+  if (file.startsWith("/")) {
+    if (size === "full" || !hasVariants(file)) return file;
+    return variant(file, size === "thumb" ? "@600" : "@1200");
+  }
+  if (size !== "full" && !/-icon\.webp$/.test(file)) {
     return "/photos/" + file.replace(/\.webp$/, "@600.webp");
   }
   return "/photos/" + file;
 }
+
+/** srcset。縮小版がある写真だけ。無ければ undefined（src だけで出す） */
+export function photoSrcSet(file: string): string | undefined {
+  if (!file.startsWith("/") || !hasVariants(file)) return undefined;
+  return `${variant(file, "@600")} 600w, ${variant(file, "@1200")} 1200w, ${file} 1600w`;
+}
+
+/**
+ * ヒーローの背面に敷く、ぼかした写真。幅48の縮小版を引き伸ばして使うので、CSS の blur は要らない。
+ * 縮小版が無い写真は null（呼ぶ側で元の写真に CSS の blur をかける）
+ */
+export function photoBgSrc(file: string): string | null {
+  return file.startsWith("/") && hasVariants(file) ? variant(file, "@bg") : null;
+}
+
+const hasVariants = (file: string) => /\/\d{2}\.webp$/.test(file);
+const variant = (file: string, suffix: string) => file.replace(/\.webp$/, `${suffix}.webp`);
