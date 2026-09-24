@@ -36,7 +36,7 @@
       "icon": null,
       "photos": [],
       "tile_size": "M",
-      "listed": false
+      "listed": true
     },
     {
       "id": "c047",
@@ -75,7 +75,7 @@
       "icon": null,
       "photos": [],
       "tile_size": "M",
-      "listed": false
+      "listed": true
     },
     {
       "id": "c054",
@@ -161,7 +161,7 @@
         "/circles/c055/01.webp"
       ],
       "tile_size": "M",
-      "listed": false
+      "listed": true
     },
     {
       "id": "c056",
