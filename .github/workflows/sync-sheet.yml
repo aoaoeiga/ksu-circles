@@ -1,0 +1,79 @@
+# シートからサイトを更新する。
+# 掲載データ・団体マスタを読んで data/circles.json と public/circles を作り直し、
+# 差分があれば PR「シートの更新」を開く（同じ PR を上書きしていく）。
+# **main へ直接は入れない。**PR の差分を人が見てマージすると Vercel が公開する（CLAUDE.md §10）。
+#
+# 動くきっかけ
+#   - 毎朝 7:00（日本時間）
+#   - Actions タブの「Run workflow」
+#   - Apps Script の requestSiteUpdate()（フォーム送信のたび / シートのメニュー）
+#
+# 準備は docs/10-sync-spec.md §9。
+name: シートからサイトを更新
+
+on:
+  schedule:
+    - cron: "0 22 * * *"
+  workflow_dispatch:
+  repository_dispatch:
+    types: [sheet-updated]
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: sync-sheet
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: シート変換のテスト
+        run: node --test scripts/sheet-transform.test.mjs
+
+      # サービスアカウントのキーは作れない（組織ポリシー）ので、Workload Identity 連携で借りる
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: sync
+        env:
+          SHEET_ID: ${{ vars.SHEET_ID }}
+          SHEET_NAME: 掲載データ
+        run: node scripts/sync.ts --yes
+
+      - name: レポートを残す
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-report
+          path: data/report.md
+          if-no-files-found: ignore
+
+      - name: 差分を PR にする
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: sync/sheet
+          delete-branch: true
+          commit-message: "data: シートの内容を反映する"
+          title: シートの更新
+          body: |
+            `掲載データ` / `団体マスタ` から `npm run sync` で作り直した差分です。
+            内容を見てマージすると公開されます。警告は Actions の実行結果にある `sync-report` を見てください。
+          add-paths: |
+            data/circles.json
+            public/circles
+            public/photos

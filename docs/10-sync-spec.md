@@ -192,3 +192,36 @@ node --test scripts/sheet-transform.test.mjs
 - JSON上書き前に追加・削除・変更フィールドを表示して確認する
 - `--yes` なしの非対話環境では既存JSONを上書きしない
 - 自動コミット・自動デプロイは実装しない
+
+---
+
+## 9. 自動で回す（GitHub Actions）
+
+`.github/workflows/sync-sheet.yml` が sync を回し、差分があれば PR「シートの更新」を開く。**マージは人がする。**マージすると Vercel が公開する。
+
+```
+フォーム送信 → 回答 → 掲載データ（式） ─┐
+                                    ├→ Actions: sync → PR「シートの更新」→ 人がマージ → Vercel
+毎朝7:00 / 手動 / Apps Script ───────┘
+```
+
+### 9-1. 準備（1回だけ）
+
+1. **Google Cloud**: サービスアカウントのキーは作れないので、Workload Identity 連携を使う。GitHub 用のプールとプロバイダを作り（発行元 `https://token.actions.githubusercontent.com`、条件 `assertion.repository == 'aoaoeiga/ksu-circles'`）、sync 用サービスアカウントに `roles/iam.workloadIdentityUser` を付ける。サービスアカウントにはスプレッドシートと写真の Drive フォルダを閲覧者で共有しておく（ローカルの偽装方式と同じ相手）
+2. **GitHub → Settings → Secrets and variables → Actions → Variables** に3つ入れる
+   - `SHEET_ID` — スプレッドシートのID
+   - `GCP_WORKLOAD_IDENTITY_PROVIDER` — `projects/<番号>/locations/global/workloadIdentityPools/<プール>/providers/<プロバイダ>`
+   - `GCP_SERVICE_ACCOUNT` — sync 用サービスアカウントのメール
+3. **GitHub → Settings → Actions → General** の「Allow GitHub Actions to create and approve pull requests」をオンにする
+4. ワークフローは **main に入ってから**定期実行される
+
+### 9-2. フォーム送信ですぐ回す（任意）
+
+`docs/ops/apps-script.gs` の `requestSiteUpdate()` が `repository_dispatch` を送る。スクリプト プロパティに `GITHUB_REPO` と `GITHUB_TOKEN`（fine-grained、このリポジトリだけ、Actions: Read and write）を入れて `installTriggers()` を1回実行する。入れなくても毎朝の定期実行で拾う。
+
+### 9-3. 新しい団体を載せる手順
+
+1. フォームで回答する（`団体ID` は `団体マスタ` と同じ `c###`）
+2. `掲載データ` の手入力列（`紹介文` / `キャッチコピー` / `tile_size` / `公開可否`）を埋める。`公開可否 = OK` で一覧に出る（§3）
+3. 写真は `回答` の `アイコン写真` / `写真` に Drive のファイルURLを入れる。`掲載データ` の `写真_元` に式でつながる
+4. PR「シートの更新」をマージする
