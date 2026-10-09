@@ -76,4 +76,3 @@ jobs:
           add-paths: |
             data/circles.json
             public/circles
-            public/photos
