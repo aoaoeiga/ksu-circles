@@ -9,7 +9,7 @@
 // **サーバーで searchParams を読むとページが動的になる**ので、読むのはこの client 側だけ。
 // 詳しくは docs/14-nextjs-notes.md §2。
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import type { Circle } from "@/types/circle";
 import {
@@ -37,7 +37,7 @@ import { DAY_LABELS } from "@/lib/gender";
 import CircleTile from "@/components/CircleTile";
 import { rememberTile } from "@/lib/flip";
 import { usePrefersReducedMotion } from "@/components/usePrefersReducedMotion";
-import { tileShapeForId } from "@/lib/tile-layout";
+import { shuffledIds, tileShapeForId } from "@/lib/tile-layout";
 
 export type Filters = {
   days: number[];
@@ -59,6 +59,23 @@ export const EMPTY_FILTERS: Filters = {
 // 縮んでくるヒーローの着地点が動いてしまう（lib/flip.ts）。
 // 絞り込みで新しく現れたタイルは、これまでどおり下から入る。
 const revealed = new Set<string>();
+
+// 一覧の並び順（団体ID → 位置）。読み込みのたびに1回だけ引き直す。
+// 詳細から戻ったときに並びが変わると、縮んでくるヒーローの着地点がずれるので覚えておく。
+// 静的HTMLはシートの順のまま出し、マウント後に並べ替える（ハイドレーションを崩さない）。
+let rank: Record<string, number> | null = null;
+
+function byRank(ids: string[], all: Circle[]): string[] {
+  if (!rank) {
+    const r: Record<string, number> = {};
+    shuffledIds(all.map((c) => c.id)).forEach((id, i) => (r[id] = i));
+    rank = r;
+  }
+  const r = rank;
+  return ids.slice().sort((a, b) => (r[a] ?? 0) - (r[b] ?? 0));
+}
+
+const noSubscribe = () => () => {};
 
 /** 移植元の passes(). 絞り込みの判定 */
 function passes(o: Circle, f: Filters): boolean {
@@ -102,6 +119,13 @@ export default function HomeScreen({
   const [leaving, setLeaving] = useState<string[]>([]);
   const [visible, setVisible] = useState<string[]>(() =>
     circles.filter((c) => passes(c, initial)).map((c) => c.id)
+  );
+
+  // サーバー（静的HTML）とハイドレーション中は false、その後 true
+  const mounted = useSyncExternalStore(noSubscribe, () => true, () => false);
+  const ordered = useMemo(
+    () => (mounted ? byRank(visible, circles) : visible),
+    [mounted, visible, circles]
   );
 
   const rects = useRef<Record<string, number>>({});
@@ -365,7 +389,7 @@ export default function HomeScreen({
         )}
 
         <div className="circle-grid">
-          {visible.map((id, order) => {
+          {ordered.map((id, order) => {
             const o = byId[id];
             if (!o) return null;
             const going = leaving.indexOf(o.id) >= 0;
