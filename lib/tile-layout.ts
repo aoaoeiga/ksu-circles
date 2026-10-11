@@ -1,8 +1,8 @@
 export type TileShape = "square" | "wide" | "large";
 
 /**
- * 団体IDだけからタイルの大きさを決める。
- * c001 の連番を3つに振り分けるため、再読込や絞り込みで大きさが変わらない。
+ * 団体IDだけからタイルの大きさを決める。静的HTMLとハイドレーション中に使う。
+ * マウント後は randomShape で引き直した大きさに置き換わる。
  */
 export function tileShapeForId(id: string): TileShape {
   const serial = /^c(\d+)$/.exec(id)?.[1];
@@ -29,4 +29,11 @@ export function shuffledIds(ids: string[], random: () => number = Math.random): 
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+}
+
+const SHAPES = ["square", "wide", "large"] as const;
+
+/** 一覧のタイルの大きさを読み込みのたびに引き直す。3種類から等確率で選ぶ */
+export function randomShape(random: () => number = Math.random): TileShape {
+  return SHAPES[Math.min(SHAPES.length - 1, Math.floor(random() * SHAPES.length))];
 }
