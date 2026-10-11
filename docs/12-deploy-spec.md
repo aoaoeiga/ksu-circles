@@ -177,3 +177,12 @@ git add -A && git commit -m "sync 2026-09-14" && git push
 ```
 
 `sync` は生成まで。**コミットは自分でやる。**何が変わったかgit diffで見てから公開する。自動コミットにすると、意図しない団体が公開される事故が起きる。
+
+## 10. アクセス解析
+
+Vercel Web Analytics（`@vercel/analytics`、`app/layout.tsx` の `<Analytics />`）。Cookie を使わず、個人を特定する情報も送らない。サーバーやデータベースは増えない（送り先は Vercel 側の `/_vercel/insights`）。
+
+- 見られるもの: 訪問者数・ページビュー（日別）、よく見られた団体ページ、参照元（Instagram・X・検索など）、国・地域、端末・OS・ブラウザ
+- 見られないもの: 一人ひとりの行動や名前（個人を追わない仕組み）
+- 見る場所: Vercel のプロジェクト → Analytics。**最初に一度 Enable を押す**まで記録されない
+- 参照元を団体ごと・配布先ごとに分けたいときは、配る URL に `?utm_source=instagram` のように付ける（Analytics の UTM 欄に出る）

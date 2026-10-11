@@ -11,6 +11,7 @@
     "sync": "node --env-file=.env scripts/sync.ts"
   },
   "dependencies": {
+    "@vercel/analytics": "2.0.1",
     "framer-motion": "^13.2.0",
     "google-auth-library": "^11.0.2",
     "googleapis": "^181.0.0",
