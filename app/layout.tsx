@@ -4,6 +4,7 @@ import { BG } from "@/lib/design";
 import { ALLOW_INDEXING, siteOrigin } from "@/lib/seo";
 import RouteMotion from "@/components/RouteMotion";
 import { fontVariables } from "@/lib/fonts";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
   // OGP などの相対 URL の起点。本番は本番の URL、preview はそのデプロイ自身（lib/seo.ts）
@@ -59,6 +60,9 @@ export default function RootLayout({
             <RouteMotion>{children}</RouteMotion>
           </div>
         </div>
+        {/* 閲覧数・参照元・国・端末を Vercel Web Analytics に送る。Cookie は使わない。
+            見るのは Vercel のプロジェクト → Analytics（有効化が必要）。docs/12-deploy-spec.md */}
+        <Analytics />
       </body>
     </html>
   );
