@@ -37,7 +37,7 @@ import { DAY_LABELS } from "@/lib/gender";
 import CircleTile from "@/components/CircleTile";
 import { rememberTile } from "@/lib/flip";
 import { usePrefersReducedMotion } from "@/components/usePrefersReducedMotion";
-import { shuffledIds, tileShapeForId } from "@/lib/tile-layout";
+import { randomShape, shuffledIds, tileShapeForId, type TileShape } from "@/lib/tile-layout";
 
 export type Filters = {
   days: number[];
@@ -60,19 +60,22 @@ export const EMPTY_FILTERS: Filters = {
 // 絞り込みで新しく現れたタイルは、これまでどおり下から入る。
 const revealed = new Set<string>();
 
-// 一覧の並び順（団体ID → 位置）。読み込みのたびに1回だけ引き直す。
-// 詳細から戻ったときに並びが変わると、縮んでくるヒーローの着地点がずれるので覚えておく。
-// 静的HTMLはシートの順のまま出し、マウント後に並べ替える（ハイドレーションを崩さない）。
-let rank: Record<string, number> | null = null;
+// 一覧の並び順（団体ID → 位置）とタイルの大きさ。読み込みのたびに1回だけ引き直す。
+// 詳細から戻ったときに変わると、縮んでくるヒーローの着地点がずれるので覚えておく。
+// 静的HTMLはシートの順・IDで決まる大きさのまま出し、マウント後に置き換える（ハイドレーションを崩さない）。
+let layout: { rank: Record<string, number>; shapes: Record<string, TileShape> } | null = null;
 
-function byRank(ids: string[], all: Circle[]): string[] {
-  if (!rank) {
-    const r: Record<string, number> = {};
-    shuffledIds(all.map((c) => c.id)).forEach((id, i) => (r[id] = i));
-    rank = r;
+function shuffledLayout(all: Circle[]) {
+  if (!layout) {
+    const rank: Record<string, number> = {};
+    const shapes: Record<string, TileShape> = {};
+    shuffledIds(all.map((c) => c.id)).forEach((id, i) => {
+      rank[id] = i;
+      shapes[id] = randomShape();
+    });
+    layout = { rank, shapes };
   }
-  const r = rank;
-  return ids.slice().sort((a, b) => (r[a] ?? 0) - (r[b] ?? 0));
+  return layout;
 }
 
 const noSubscribe = () => () => {};
@@ -123,10 +126,12 @@ export default function HomeScreen({
 
   // サーバー（静的HTML）とハイドレーション中は false、その後 true
   const mounted = useSyncExternalStore(noSubscribe, () => true, () => false);
-  const ordered = useMemo(
-    () => (mounted ? byRank(visible, circles) : visible),
-    [mounted, visible, circles]
-  );
+  const shuffled = mounted ? shuffledLayout(circles) : null;
+  const ordered = useMemo(() => {
+    if (!shuffled) return visible;
+    const r = shuffled.rank;
+    return visible.slice().sort((a, b) => (r[a] ?? 0) - (r[b] ?? 0));
+  }, [shuffled, visible]);
 
   const rects = useRef<Record<string, number>>({});
   const pendingFlip = useRef(false);
@@ -393,7 +398,7 @@ export default function HomeScreen({
             const o = byId[id];
             if (!o) return null;
             const going = leaving.indexOf(o.id) >= 0;
-            const shape = tileShapeForId(o.id);
+            const shape = shuffled?.shapes[o.id] ?? tileShapeForId(o.id);
             return (
               <Link
                 key={o.id}
