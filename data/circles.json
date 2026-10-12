@@ -38,7 +38,7 @@
       "icon": null,
       "photos": [],
       "tile_size": "M",
-      "listed": false,
+      "listed": true,
       "og_image": null
     },
     {
@@ -420,7 +420,7 @@
       "icon": null,
       "photos": [],
       "tile_size": "M",
-      "listed": false,
+      "listed": true,
       "og_image": null
     },
     {
@@ -462,7 +462,7 @@
       "icon": null,
       "photos": [],
       "tile_size": "M",
-      "listed": false,
+      "listed": true,
       "og_image": null
     },
     {
@@ -549,7 +549,7 @@
         "/circles/c135/02.webp"
       ],
       "tile_size": "M",
-      "listed": false,
+      "listed": true,
       "og_image": {
         "src": "/circles/c135/01.webp",
         "width": 959,
