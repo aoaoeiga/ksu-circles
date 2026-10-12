@@ -1,31 +1,10 @@
-// 団体ページ（S-02）。design/ksu-circles-v3.dc.html の `isDetail` ブロックの移植。
-//
-// 完全な静的生成。generateStaticParams で公開対象の全IDを返し、
-// dynamicParams = false で列挙外のIDを404にする（docs/14-nextjs-notes.md §8 / deploy-spec §2）。
-//
-// ヒーローと活動日カードだけが client（写真の切り替えと、URLからの曜日一致）。
-// それ以外はサーバーで描いてHTMLに焼く。
-
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { allCircleIds, getCircle } from "@/lib/circles";
 import { feeLabel, genderRatio, numLabel } from "@/lib/gender";
-import {
-  CARD,
-  DARK,
-  EYEBROW,
-  INK,
-  INK_MID,
-  RULE,
-  SECTION_TITLE,
-  SHADOW,
-  WHITE,
-  num,
-} from "@/lib/design";
 import { recruitingLabel, surveyedText } from "@/lib/labels";
 import Hero from "@/components/Hero";
-import DetailReveal from "@/components/DetailReveal";
 import DayCard, { DayCardStatic } from "@/components/DayCard";
 import ReviewNotice from "@/components/ReviewNotice";
 
@@ -37,29 +16,23 @@ export function generateStaticParams() {
 
 export async function generateMetadata(props: PageProps<"/c/[id]">): Promise<Metadata> {
   const { id } = await props.params;
-  const c = getCircle(id);
-  if (!c) return {};
+  const circle = getCircle(id);
+  if (!circle) return {};
   return {
-    title: `${c.short_name} | 京産大サークル名鑑`,
-    description: c.one_liner,
-    // 確認用ページは ALLOW_INDEXING に関わらず常に noindex（検索に出さない）。
-    // 一覧に出す団体ではキーごと置かない。robots: undefined と書くと
-    // app/layout.tsx の公開前 noindex を打ち消してしまう
-    ...(c.listed
+    title: `${circle.short_name} | 京産大サークル名鑑`,
+    description: circle.one_liner,
+    ...(circle.listed
       ? {}
       : { robots: { index: false, follow: false, googleBot: { index: false, follow: false } } }),
-    // 大きさは sync が実ファイルから測った値。URL は layout の metadataBase で絶対 URL になる
-    ...(c.og_image
+    ...(circle.og_image
       ? {
           openGraph: {
-            images: [
-              {
-                url: c.og_image.src,
-                width: c.og_image.width,
-                height: c.og_image.height,
-                alt: c.short_name,
-              },
-            ],
+            images: [{
+              url: circle.og_image.src,
+              width: circle.og_image.width,
+              height: circle.og_image.height,
+              alt: circle.short_name,
+            }],
           },
         }
       : {}),
@@ -68,266 +41,98 @@ export async function generateMetadata(props: PageProps<"/c/[id]">): Promise<Met
 
 export default async function CirclePage(props: PageProps<"/c/[id]">) {
   const { id } = await props.params;
-  const c = getCircle(id);
-  if (!c) notFound();
+  const circle = getCircle(id);
+  if (!circle) notFound();
 
-  const gender = genderRatio(c.male_ratio) ?? "—";
-  const bigNum = num(28);
-  const dash = num(28, INK_MID);
-  const wordNum = {
-    fontFamily: "var(--font-noto), sans-serif",
-    fontWeight: 500,
-    fontSize: 16,
-    color: INK,
-  };
-  const isWord = gender === "女子のみ" || gender === "男子のみ";
-
-  // 数字カードは4枚・2×2のまま。中の未確認は `—`（カードごと消さない）
+  const gender = genderRatio(circle.male_ratio) ?? "—";
   const numbers = [
-    {
-      label: "年会費",
-      value: feeLabel(c.annual_fee),
-      style: c.annual_fee === null ? dash : bigNum,
-    },
-    {
-      label: "所属人数",
-      value: numLabel(c.member_count),
-      style: c.member_count === null ? dash : bigNum,
-    },
-    {
-      label: "初心者出身",
-      value: numLabel(c.beginner_count),
-      style: c.beginner_count === null ? dash : bigNum,
-    },
-    {
-      label: "男 : 女",
-      value: gender,
-      style: isWord ? wordNum : gender === "—" ? dash : bigNum,
-    },
+    { label: "年会費", value: feeLabel(circle.annual_fee) },
+    { label: "所属人数", value: numLabel(circle.member_count) },
+    { label: "初心者から始めた人", value: numLabel(circle.beginner_count) },
+    { label: "男 : 女", value: gender },
   ];
-
-  const recruiting = recruitingLabel(c);
-  const pill = {
-    display: "inline-flex" as const,
-    alignItems: "center" as const,
-    height: 24,
-    padding: "0 12px",
-    borderRadius: 999,
-    fontSize: 11,
-    width: "max-content" as const,
-  };
-  const badgeStyle =
-    recruiting === "いつでも入れる"
-      ? { ...pill, background: INK, color: WHITE }
-      : recruiting === "4月のみ"
-        ? { ...pill, color: INK, boxShadow: "inset 0 0 0 1px " + INK }
-        : { ...pill, color: INK_MID, boxShadow: "inset 0 0 0 1px " + INK_MID };
-
-  const snsBtn = {
-    flex: 1,
-    height: 46,
-    display: "flex" as const,
-    alignItems: "center" as const,
-    justifyContent: "center" as const,
-    fontSize: 13,
-    color: INK,
-    background: WHITE,
-    borderRadius: 999,
-    boxShadow: SHADOW,
-  };
-  const snsOff = {
-    ...snsBtn,
-    color: INK_MID,
-    cursor: "default" as const,
-    boxShadow: "inset 0 0 0 1px " + RULE,
-    background: "transparent",
-  };
+  const recruiting = recruitingLabel(circle);
   const sns: { label: string; href: string | null }[] = [
-    { label: "Instagram", href: c.sns.instagram },
-    { label: "X", href: c.sns.x },
-    { label: "公式サイト", href: c.sns.website },
+    { label: "Instagram", href: circle.sns.instagram },
+    { label: "X", href: circle.sns.x },
+    { label: "公式サイト", href: circle.sns.website },
   ];
-
-  const aboutCard = { ...CARD, marginTop: 16, display: "flex", flexDirection: "column" as const, gap: 12 };
 
   return (
-    <div style={{ position: "relative" }}>
-      {!c.listed && <ReviewNotice />}
-      <Hero circle={c} />
+    <main className="detail-page">
+      {!circle.listed && <ReviewNotice />}
+      <Hero circle={circle} />
 
-      <DetailReveal>
-        <div
-        style={{
-          position: "relative",
-          zIndex: 5,
-          background: "#EFEFEB",
-          borderRadius: "16px 16px 0 0",
-          padding: "0 0 40px",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 0" }}>
-          <div style={{ width: 36, height: 4, borderRadius: 2, background: RULE }} />
+      <article className="detail-content">
+        <div className="detail-intro">
+          <p className="detail-intro__label">ひとことで言うと</p>
+          <p className="detail-intro__lead">{circle.one_liner}</p>
         </div>
 
-        <div style={{ padding: "22px 20px 0" }}>
-          <div
-            style={{
-              fontFamily: "var(--font-zen), sans-serif",
-              fontWeight: 700,
-              fontSize: 20,
-              lineHeight: 1.6,
-              letterSpacing: "-0.02em",
-              color: INK,
-              textWrap: "pretty",
-            }}
-          >
-            {c.one_liner}
-          </div>
+        <DetailSection title="この団体について">
+          <p className="detail-prose">{circle.description.replace(/\n+/g, "")}</p>
+        </DetailSection>
 
-          <Suspense fallback={<DayCardStatic circle={c} />}>
-            <DayCard circle={c} />
+        <DetailSection title="活動について">
+          <Suspense fallback={<DayCardStatic circle={circle} />}>
+            <DayCard circle={circle} />
           </Suspense>
-        </div>
+        </DetailSection>
 
-        <Section eyebrow="数字で見る" title="NUMBERS">
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 12,
-              marginTop: 16,
-            }}
-          >
-            {numbers.map((n) => (
-              <div key={n.label} style={CARD}>
-                <div style={n.style}>{n.value}</div>
-                <div style={{ ...EYEBROW, marginTop: 10 }}>{n.label}</div>
+        <DetailSection title="数字で見る">
+          <div className="number-grid">
+            {numbers.map((item) => (
+              <div className="number-card" key={item.label}>
+                <div className={`number-card__value ${item.value === "—" ? "is-empty" : ""}`}>{item.value}</div>
+                <div className="number-card__label">{item.label}</div>
               </div>
             ))}
           </div>
-        </Section>
+        </DetailSection>
 
-        <Section eyebrow="この団体について" title="ABOUT">
-          <div style={aboutCard}>
-            {c.description.split("\n").map((t, i) => (
-              <div
-                key={i}
-                style={{
-                  fontSize: 15,
-                  lineHeight: 1.85,
-                  letterSpacing: "0.02em",
-                  color: INK,
-                  textWrap: "pretty",
-                }}
-              >
-                {t}
-              </div>
-            ))}
-          </div>
-        </Section>
+        <DetailSection title="代表からの一言">
+          <figure className="voice-card">
+            <blockquote>{circle.leader_comment?.text ?? "代表からの一言 未確認"}</blockquote>
+            {circle.leader_comment && <figcaption>{circle.leader_comment.role}</figcaption>}
+          </figure>
+        </DetailSection>
 
-        {/* 署名は leader_comment.role から読む。個人名は入れない（CLAUDE.md §7） */}
-        <Section eyebrow="代表からの一言" title="VOICE">
-          <div style={aboutCard}>
-            <div
-              style={{
-                borderLeft: "2px solid " + INK,
-                paddingLeft: 14,
-                fontSize: 15,
-                lineHeight: 1.85,
-                letterSpacing: "0.02em",
-                color: INK,
-                textWrap: "pretty",
-              }}
-            >
-              {c.leader_comment ? c.leader_comment.text : "代表からの一言 未確認"}
+        <DetailSection title="参加・問い合わせ">
+          <div className="join-card">
+            <div>
+              <span>いま入れるか</span>
+              <strong>{recruiting}</strong>
             </div>
-            {c.leader_comment && (
-              <div style={{ fontSize: 12, color: INK_MID, textAlign: "right" }}>
-                {c.leader_comment.role}
-              </div>
-            )}
+            <p>最新の活動予定や参加方法は、各団体の公式SNS・サイトで確認してください。</p>
+            <div className="sns-links">
+              {sns.map((item) =>
+                item.href ? (
+                  <a key={item.label} href={item.href} target="_blank" rel="noopener noreferrer">
+                    {item.label}<span aria-hidden="true"> ↗</span>
+                  </a>
+                ) : (
+                  <span key={item.label} aria-label={`${item.label} 未登録`}>{item.label}<small>未登録</small></span>
+                )
+              )}
+            </div>
           </div>
-        </Section>
+        </DetailSection>
+      </article>
 
-        <Section eyebrow="いま入れるか" title="JOIN">
-          <div style={{ marginTop: 16 }}>
-            <div style={badgeStyle}>{recruiting}</div>
-          </div>
-        </Section>
-
-        <div style={{ display: "flex", gap: 8, padding: "24px 20px 0", flexWrap: "wrap" }}>
-          {sns.map((s) =>
-            s.href ? (
-              <a
-                key={s.label}
-                href={s.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ ...snsBtn, textDecoration: "none" }}
-              >
-                {s.label}
-              </a>
-            ) : (
-              <div key={s.label} style={snsOff}>
-                {s.label}
-              </div>
-            )
-          )}
-        </div>
-        </div>
-
-        <div
-        style={{
-          position: "relative",
-          zIndex: 5,
-          background: DARK,
-          padding: "40px 20px 44px",
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 13,
-            lineHeight: 1.85,
-            letterSpacing: "0.02em",
-            color: "rgba(255,255,255,.78)",
-            textWrap: "pretty",
-          }}
-        >
-          掲載内容は運営が団体に聞き取って作成し、公開前に団体へ確認しています。
-        </div>
-        <div style={{ fontSize: 11, color: "rgba(255,255,255,.6)" }}>
-          {surveyedText(c.surveyed_at)}
-        </div>
-        {/* 「情報の修正・取り下げはこちら」は行き先（フォーム）が決まるまで出さない。
-            href="#" のままだと押しても何も起きず、代表が一番探すリンクで迷わせる（docs/ui-audit-2026-09-24.md B5） */}
-        <div style={{ fontSize: 11, color: "rgba(255,255,255,.5)" }}>京産大サークル名鑑 2026</div>
-        </div>
-      </DetailReveal>
-    </div>
+      <footer className="detail-footer">
+        <p>掲載内容は運営が団体に聞き取って作成し、公開前に団体へ確認しています。</p>
+        <p>{surveyedText(circle.surveyed_at)}</p>
+        <p>京産大サークル名鑑 2026</p>
+      </footer>
+    </main>
   );
 }
 
-function Section({
-  eyebrow,
-  title,
-  children,
-}: {
-  eyebrow: string;
-  title: string;
-  children: React.ReactNode;
-}) {
+function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ padding: "40px 20px 0" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-        <div style={{ width: 9, height: 9, borderRadius: 5, border: "1px solid " + INK_MID }} />
-        <div style={EYEBROW}>{eyebrow}</div>
-      </div>
-      <div style={SECTION_TITLE}>{title}</div>
+    <section className="detail-section">
+      <h2>{title}</h2>
       {children}
-    </div>
+    </section>
   );
 }

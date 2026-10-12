@@ -1,47 +1,25 @@
 "use client";
 
-// 活動日カード（docs/ui/07-content.md §3）。数字カードと同じ枠・角丸・影で、幅だけ全幅。
-//
-// **一覧で選んだ曜日と一致した曜日だけを山吹にする。**山吹はここ以外で使わない（CLAUDE.md §5）。
-// 選んだ曜日はURL（?days=）から読む。サーバーで読むとページが動的になるので client 側で読み、
-// 呼び出し側で Suspense に包む（docs/14-nextjs-notes.md §2）。
-
 import { useSearchParams } from "next/navigation";
 import type { Circle } from "@/types/circle";
-import { CARD, EASE, EYEBROW, INK, INK_MID, MATCH, RULE } from "@/lib/design";
+import { DAY_ORDER } from "@/lib/design";
 import { DAY_LABELS } from "@/lib/gender";
 import { easeText, multiText, seniorCallText } from "@/lib/labels";
 
-const big = (color: string) => ({
-  fontFamily: "var(--font-zen), sans-serif",
-  fontWeight: 700,
-  fontSize: 30,
-  lineHeight: 1.25,
-  letterSpacing: "-0.02em",
-  color,
-  transition: "color 240ms " + EASE,
-});
-
-/** 曜日の一致を反映しない素の状態。Suspense の fallback に使う */
 export function DayCardStatic({ circle }: { circle: Circle }) {
   return <Card circle={circle} matched={[]} />;
 }
 
 export default function DayCard({ circle }: { circle: Circle }) {
-  const sp = useSearchParams();
-  const raw = sp.get("days");
-  const selected = raw
-    ? raw
-        .split(",")
-        .map((s) => Number(s))
-        .filter((n) => Number.isInteger(n) && n >= 0 && n <= 6)
-    : [];
-  const matched = circle.active_days.filter((d) => selected.indexOf(d) >= 0);
-  return <Card circle={circle} matched={matched} />;
+  const params = useSearchParams();
+  const selected = (params.get("days") ?? "")
+    .split(",")
+    .map(Number)
+    .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6);
+  return <Card circle={circle} matched={circle.active_days.filter((day) => selected.includes(day))} />;
 }
 
 function Card({ circle, matched }: { circle: Circle; matched: number[] }) {
-  const days = [...circle.active_days].sort((a, b) => a - b);
   const rows = [
     ["活動頻度", circle.frequency ?? "未確認"],
     ["活動場所", circle.place ?? "未確認"],
@@ -49,34 +27,32 @@ function Card({ circle, matched }: { circle: Circle; matched: number[] }) {
     ["参加の緩さ", easeText(circle)],
     ["先輩の呼び方", seniorCallText(circle)],
   ];
+  const hasDays = circle.active_days.length > 0;
 
   return (
-    <div style={{ ...CARD, marginTop: 20 }}>
-      <div style={EYEBROW}>活動日</div>
-
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", marginTop: 12 }}>
-        {days.length === 0 && circle.days_undecided ? (
-          // 「曜日は決まっていない」と聞けている。未確認とは別。聞けたことなので主色で出す
-          <div style={big(INK)}>不定期</div>
-        ) : days.length === 0 ? (
-          // 未確認でも 30px のまま出す。小さくして誤魔化さない（docs/ui/07-content.md §3）
-          <div style={big(INK_MID)}>活動日 未確認</div>
+    <div className="activity-card">
+      <div className="activity-card__days">
+        <div className="activity-card__label">活動日</div>
+        {hasDays ? (
+          <div className="weekday-row" aria-label={`活動日: ${circle.active_days.map((day) => DAY_LABELS[day]).join("・")}`}>
+            {DAY_ORDER.map((day) => {
+              const active = circle.active_days.includes(day);
+              const isMatch = matched.includes(day);
+              return <span key={day} className={`${active ? "is-active" : ""} ${isMatch ? "is-match" : ""}`}>{DAY_LABELS[day]}</span>;
+            })}
+          </div>
         ) : (
-          days.map((d, n) => (
-            <span key={d} style={{ display: "contents" }}>
-              <div style={big(matched.indexOf(d) >= 0 ? MATCH : INK)}>{DAY_LABELS[d]}</div>
-              {n < days.length - 1 && <div style={big(INK_MID)}>・</div>}
-            </span>
-          ))
+          <strong>{circle.days_undecided ? "不定期" : "活動日 未確認"}</strong>
         )}
       </div>
-
-      <div style={{ height: 1, background: RULE, margin: "16px 0 0" }} />
-      {rows.map(([label, value]) => (
-        <div key={label} style={{ fontSize: 13, color: INK_MID, marginTop: 14, lineHeight: 1.7 }}>
-          {label} {value}
-        </div>
-      ))}
+      <dl className="activity-facts">
+        {rows.map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
     </div>
   );
 }

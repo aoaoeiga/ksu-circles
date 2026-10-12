@@ -1,45 +1,28 @@
 "use client";
 
-// 一覧（S-01）。絞り込みは従来のまま、表示だけを大小のタイルグリッドにする。
-//
-// 移植元はクラス1つで画面切り替えまで持っていたが、こちらは Next のルーティングに載せる。
-// タイルのサイズは団体IDから決め、再読込や絞り込みで変えない。
-//
-// 絞り込みの状態はURLに載せる（要件定義 §6-1「共有できること」）。ただし
-// **サーバーで searchParams を読むとページが動的になる**ので、読むのはこの client 側だけ。
-// 詳しくは docs/14-nextjs-notes.md §2。
-
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { Circle } from "@/types/circle";
 import {
-  BG,
-  BIG_BTN,
   BUTTON_RESET,
   CATS,
   DAY_ORDER,
-  EASE,
   FEES,
   FEE_ANY,
   GENRES,
-  INK,
-  INK_MID,
-  RULE,
-  WHITE,
   chipStyle,
   genreColor,
-  num,
+  photoSrc,
   switchKnob,
   switchTrack,
   type FeeChoice,
 } from "@/lib/design";
 import { DAY_LABELS } from "@/lib/gender";
 import CircleTile from "@/components/CircleTile";
-import { rememberTile } from "@/lib/flip";
-import { usePrefersReducedMotion } from "@/components/usePrefersReducedMotion";
-import { tileShapeForId } from "@/lib/tile-layout";
+import InitialTile from "@/components/InitialTile";
 
 export type Filters = {
+  q: string;
   days: number[];
   cats: string[];
   genres: string[];
@@ -48,6 +31,7 @@ export type Filters = {
 };
 
 export const EMPTY_FILTERS: Filters = {
+  q: "",
   days: [],
   cats: [],
   genres: [],
@@ -55,39 +39,81 @@ export const EMPTY_FILTERS: Filters = {
   beginner: false,
 };
 
-// 一度出したタイルは覚えておく。詳細から戻ったときに一覧ぜんぶが入り直すと、
-// 縮んでくるヒーローの着地点が動いてしまう（lib/flip.ts）。
-// 絞り込みで新しく現れたタイルは、これまでどおり下から入る。
-const revealed = new Set<string>();
-
-/** 移植元の passes(). 絞り込みの判定 */
-function passes(o: Circle, f: Filters): boolean {
-  if (f.days.length && !f.days.some((d) => o.active_days.indexOf(d) >= 0)) return false;
-  if (f.cats.length && f.cats.indexOf(o.category) < 0) return false;
-  if (f.genres.length && f.genres.indexOf(o.genre) < 0) return false;
-  if (f.fee !== FEE_ANY) {
-    // 年会費が未確認の団体は、金額で絞ったときには出さない。
-    // 0（無料）とは別扱い。ここを混ぜると未確認が無料に見える（CLAUDE.md §4）
-    if (o.annual_fee === null) return false;
-    if (f.fee === "0円" && o.annual_fee !== 0) return false;
-    if (f.fee === "〜3,000円" && o.annual_fee > 3000) return false;
-    if (f.fee === "〜10,000円" && o.annual_fee > 10000) return false;
-    if (f.fee === "10,000円〜" && o.annual_fee <= 10000) return false;
+function passes(circle: Circle, filters: Filters): boolean {
+  const query = filters.q.trim().toLocaleLowerCase("ja");
+  if (
+    query &&
+    ![circle.short_name, circle.name, circle.one_liner, circle.genre, circle.category]
+      .join(" ")
+      .toLocaleLowerCase("ja")
+      .includes(query)
+  )
+    return false;
+  if (filters.days.length && !filters.days.some((day) => circle.active_days.includes(day))) return false;
+  if (filters.cats.length && !filters.cats.includes(circle.category)) return false;
+  if (filters.genres.length && !filters.genres.includes(circle.genre)) return false;
+  if (filters.fee !== FEE_ANY) {
+    if (circle.annual_fee === null) return false;
+    if (filters.fee === "0円" && circle.annual_fee !== 0) return false;
+    if (filters.fee === "〜3,000円" && circle.annual_fee > 3000) return false;
+    if (filters.fee === "〜10,000円" && circle.annual_fee > 10000) return false;
+    if (filters.fee === "10,000円〜" && circle.annual_fee <= 10000) return false;
   }
-  if (f.beginner && !o.beginner_count) return false;
+  if (filters.beginner && !circle.beginner_count) return false;
   return true;
 }
 
-/** 絞り込みをURLの検索文字列にする。既定値は書かない（きれいなURLを保つ） */
-export function filtersToQuery(f: Filters): string {
-  const p = new URLSearchParams();
-  if (f.days.length) p.set("days", [...f.days].sort((a, b) => a - b).join(","));
-  if (f.cats.length) p.set("cats", f.cats.join(","));
-  if (f.genres.length) p.set("genres", f.genres.join(","));
-  if (f.fee !== FEE_ANY) p.set("fee", f.fee);
-  if (f.beginner) p.set("beginner", "1");
-  const s = p.toString();
-  return s ? "?" + s : "";
+export function filtersToQuery(filters: Filters): string {
+  const params = new URLSearchParams();
+  if (filters.q.trim()) params.set("q", filters.q.trim());
+  if (filters.days.length) params.set("days", [...filters.days].sort((a, b) => a - b).join(","));
+  if (filters.cats.length) params.set("cats", filters.cats.join(","));
+  if (filters.genres.length) params.set("genres", filters.genres.join(","));
+  if (filters.fee !== FEE_ANY) params.set("fee", filters.fee);
+  if (filters.beginner) params.set("beginner", "1");
+  const value = params.toString();
+  return value ? `?${value}` : "";
+}
+
+function coverCircles(circles: Circle[]): Circle[] {
+  const candidates = circles.filter((circle) => circle.icon || circle.photos[0]);
+  const result: Circle[] = [];
+  const lead = candidates.find((circle) => circle.tile_size === "L") ?? candidates[0];
+  if (lead) result.push(lead);
+  for (const circle of candidates) {
+    if (result.some((item) => item.id === circle.id)) continue;
+    if (result.length < 3 && result.some((item) => item.genre === circle.genre)) continue;
+    result.push(circle);
+    if (result.length === 4) break;
+  }
+  for (const circle of candidates) {
+    if (result.length === 4) break;
+    if (!result.some((item) => item.id === circle.id)) result.push(circle);
+  }
+  return result;
+}
+
+function EditorialPhoto({ circle, className }: { circle: Circle; className: string }) {
+  const [failed, setFailed] = useState(false);
+  const file = circle.icon ?? circle.photos[0] ?? null;
+  return (
+    <div className={className} style={{ background: genreColor(circle.genre) }}>
+      {file && !failed ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={photoSrc(file, "thumb")}
+          alt={`${circle.short_name}の活動写真`}
+          width={600}
+          height={400}
+          loading="eager"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <InitialTile circle={circle} />
+      )}
+      <span>{circle.short_name}</span>
+    </div>
+  );
 }
 
 export default function HomeScreen({
@@ -97,552 +123,198 @@ export default function HomeScreen({
   circles: Circle[];
   initial?: Filters;
 }) {
-  const [f, setF] = useState<Filters>(initial);
+  const [filters, setFilters] = useState(initial);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [leaving, setLeaving] = useState<string[]>([]);
-  const [visible, setVisible] = useState<string[]>(() =>
-    circles.filter((c) => passes(c, initial)).map((c) => c.id)
-  );
+  const featured = useMemo(() => coverCircles(circles), [circles]);
+  const filtered = useMemo(() => circles.filter((circle) => passes(circle, filters)), [circles, filters]);
 
-  const rects = useRef<Record<string, number>>({});
-  const pendingFlip = useRef(false);
-  const leaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  const byId = useMemo(() => {
-    const m: Record<string, Circle> = {};
-    circles.forEach((c) => (m[c.id] = c));
-    return m;
-  }, [circles]);
-
-  const reduced = usePrefersReducedMotion();
-
-  const filteredCount = useMemo(
-    () => circles.filter((c) => passes(c, f)).length,
-    [circles, f]
-  );
-
-  // --- 絞り込みの反映（移植元の measure / flip / applyFilters） -------------
-  const measure = useCallback(() => {
-    const m: Record<string, number> = {};
-    document.querySelectorAll("[data-org]").forEach((el) => {
-      const id = el.getAttribute("data-org");
-      if (id) m[id] = el.getBoundingClientRect().top;
-    });
-    rects.current = m;
+  // App Router のハイドレーション後も表紙の「団体を探す」アンカーを復元する。
+  useEffect(() => {
+    if (window.location.hash !== "#directory") return;
+    document.getElementById("directory")?.scrollIntoView({ behavior: "auto", block: "start" });
   }, []);
 
   useEffect(() => {
-    if (reduced || !pendingFlip.current) return;
-    pendingFlip.current = false;
-    document.querySelectorAll("[data-org]").forEach((node) => {
-      const el = node as HTMLElement;
-      const id = el.getAttribute("data-org");
-      const prev = id ? rects.current[id] : undefined;
-      if (prev === undefined) return;
-      const delta = prev - el.getBoundingClientRect().top;
-      if (!delta) return;
-      el.style.transition = "none";
-      el.style.transform = "translateY(" + delta + "px)";
-      requestAnimationFrame(() => {
-        el.style.transition = "transform 280ms " + EASE;
-        el.style.transform = "translateY(0)";
-      });
-    });
-  }, [visible, reduced]);
+    if (!sheetOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSheetOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [sheetOpen]);
 
-  const applyFilters = useCallback(
-    (patch: Partial<Filters>) => {
-      measure();
-      const next = { ...f, ...patch };
-      setF(next);
-
-      // URLに反映する。router.push だと絞り込むたびに履歴が積もって
-      // 戻るボタンが壊れるので replaceState で書き換える（docs/14-nextjs-notes.md §2）
-      window.history.replaceState(null, "", window.location.pathname + filtersToQuery(next));
-
-      const nextIds = circles.filter((c) => passes(c, next)).map((c) => c.id);
-      const gone = visible.filter((id) => nextIds.indexOf(id) < 0);
-      pendingFlip.current = true;
-      if (gone.length && !reduced) {
-        setLeaving(gone);
-        clearTimeout(leaveTimer.current);
-        leaveTimer.current = setTimeout(() => {
-          measure();
-          pendingFlip.current = true;
-          setVisible(nextIds);
-          setLeaving([]);
-        }, 180);
-      } else {
-        setVisible(nextIds);
-        setLeaving([]);
-      }
-    },
-    [circles, f, measure, reduced, visible]
-  );
-
-  useEffect(() => () => clearTimeout(leaveTimer.current), []);
-
-  // --- カードの現れ方（移植元の observe / IntersectionObserver） -----------
-  useEffect(() => {
-    if (reduced) {
-      document.querySelectorAll("[data-reveal]").forEach((n) => {
-        const el = n as HTMLElement;
-        el.style.opacity = "1";
-        el.style.transform = "none";
-      });
-      return;
-    }
-    if (!("IntersectionObserver" in window)) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((e) => {
-          if (!e.isIntersecting) return;
-          const el = e.target as HTMLElement;
-          el.style.transition = "opacity 420ms " + EASE + ", transform 420ms " + EASE;
-          el.style.opacity = "1";
-          el.style.transform = "translateY(0)";
-          el.setAttribute("data-shown", "1");
-          const id = el.getAttribute("data-org");
-          if (id) revealed.add(id);
-          io.unobserve(el);
-        });
-      },
-      { threshold: 0.06, rootMargin: "0px 0px -6% 0px" }
-    );
-    document
-      .querySelectorAll("[data-reveal]:not([data-shown]):not([data-observed])")
-      .forEach((n) => {
-        const el = n as HTMLElement;
-        el.setAttribute("data-observed", "1");
-        const id = el.getAttribute("data-org");
-        if (id && revealed.has(id)) {
-          // すでに見せたタイル。戻ってきただけなので、出ている形のまま置く
-          el.setAttribute("data-shown", "1");
-          return;
-        }
-        el.style.opacity = "0";
-        el.style.transform = "translateY(24px)";
-        io.observe(el);
-      });
-    return () => io.disconnect();
-  }, [visible, reduced]);
-
-  const toggleIn = (key: "days" | "cats" | "genres", v: never | number | string) => {
-    const a = (f[key] as (number | string)[]).slice();
-    const i = a.indexOf(v);
-    if (i >= 0) a.splice(i, 1);
-    else a.push(v);
-    applyFilters({ [key]: a } as Partial<Filters>);
+  const applyFilters = (patch: Partial<Filters>) => {
+    const next = { ...filters, ...patch };
+    setFilters(next);
+    window.history.replaceState(null, "", window.location.pathname + filtersToQuery(next));
   };
 
-  const filterCount =
-    f.days.length +
-    f.cats.length +
-    f.genres.length +
-    (f.fee !== FEE_ANY ? 1 : 0) +
-    (f.beginner ? 1 : 0);
+  const toggleIn = (key: "days" | "cats" | "genres", value: number | string) => {
+    const selected = [...(filters[key] as (number | string)[])];
+    const index = selected.indexOf(value);
+    if (index >= 0) selected.splice(index, 1);
+    else selected.push(value);
+    applyFilters({ [key]: selected } as Partial<Filters>);
+  };
+
+  const conditionCount =
+    filters.days.length +
+    filters.cats.length +
+    filters.genres.length +
+    (filters.fee !== FEE_ANY ? 1 : 0) +
+    (filters.beginner ? 1 : 0);
 
   return (
-    <div data-screen="home">
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "18px 20px 0",
-        }}
-      >
-        <div
-          style={{
-            fontFamily: "var(--font-zen), sans-serif",
-            fontWeight: 700,
-            fontSize: 15,
-            letterSpacing: "-0.04em",
-            color: INK,
-          }}
-        >
-          京産大サークル名鑑
+    <main className="home">
+      <header className="site-header">
+        <a href="#top" className="site-wordmark">京産大サークル名鑑</a>
+        <a href="#directory" className="site-header__link">団体を探す ↓</a>
+      </header>
+
+      <section className="cover" id="top" aria-labelledby="cover-title">
+        <div className="cover__copy">
+          <p className="cover__kicker">京都産業大学のサークル案内</p>
+          <h1 id="cover-title">知らなかった<br />居場所に、<br />会いにいこう。</h1>
+          <p className="cover__lead">
+            運営が一団体ずつ聞き取った情報と、実際の活動写真から探せるサークル名鑑です。
+          </p>
+          <a className="cover__cta" href="#directory">掲載中の{circles.length}団体を見る</a>
         </div>
-      </div>
+        <div className="cover-collage" aria-label="掲載団体の活動写真">
+          {featured.map((circle, index) => (
+            <EditorialPhoto key={circle.id} circle={circle} className={`cover-photo cover-photo--${index + 1}`} />
+          ))}
+        </div>
+      </section>
 
-      <div style={{ padding: "30px 20px 0" }}>
-        <h1
-          style={{
-            margin: 0,
-            fontFamily: "var(--font-zen), sans-serif",
-            fontWeight: 700,
-            fontSize: 48,
-            lineHeight: 1.15,
-            letterSpacing: "-0.05em",
-            color: INK,
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
-          <span style={{ animation: `lineUp 480ms ${EASE} both`, animationDelay: "0ms" }}>
-            京産大の
-          </span>
-          <span style={{ animation: `lineUp 480ms ${EASE} both`, animationDelay: "80ms" }}>
-            サークル、
-          </span>
-          <span style={{ animation: `lineUp 480ms ${EASE} both`, animationDelay: "160ms" }}>
-            全部ここに。
-          </span>
-        </h1>
-        <p
-          style={{
-            margin: "20px 0 0",
-            fontSize: 15,
-            lineHeight: 1.8,
-            color: INK_MID,
-            animation: `lineUp 480ms ${EASE} both`,
-            animationDelay: "260ms",
-          }}
-        >
-          {circles.length}団体を、活動曜日と年会費から探せます。
-        </p>
-      </div>
-
-      <div style={{ padding: "44px 20px 120px" }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-end",
-            justifyContent: "space-between",
-            paddingBottom: 18,
-          }}
-        >
+      <section className="directory" id="directory" aria-labelledby="directory-title">
+        <div className="directory__heading">
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-              <div
-                style={{
-                  width: 9,
-                  height: 9,
-                  borderRadius: 5,
-                  border: "1px solid " + INK_MID,
-                }}
-              />
-              <div
-                style={{ fontSize: 11, letterSpacing: "0.14em", fontWeight: 500, color: INK_MID }}
-              >
-                団体をさがす
-              </div>
-            </div>
-            <h2
-              style={{
-                margin: "6px 0 0",
-                fontFamily: "var(--font-schibsted), sans-serif",
-                fontWeight: 700,
-                fontSize: 32,
-                letterSpacing: "-0.03em",
-                lineHeight: 1.1,
-                color: INK,
-              }}
-            >
-              CIRCLES
-            </h2>
+            <p className="section-kicker">自分の条件から見つける</p>
+            <h2 id="directory-title">団体を探す</h2>
           </div>
-          <div style={num(14, INK_MID)}>{filteredCount}件</div>
+          <div className="directory__count" aria-live="polite">{filtered.length}件</div>
         </div>
 
-        {filteredCount === 0 && (
-          <div style={{ padding: "56px 8px", textAlign: "center" }}>
-            <div
-              style={{
-                fontFamily: "var(--font-zen), sans-serif",
-                fontWeight: 700,
-                fontSize: 18,
-                letterSpacing: "-0.04em",
-                color: INK,
-              }}
-            >
-              条件に合う団体がありません
-            </div>
-            <div style={{ fontSize: 14, color: INK_MID, marginTop: 10, lineHeight: 1.8 }}>
-              曜日か会費の条件をゆるめてみてください。
-            </div>
+        <div className="search-bar">
+          <label className="search-field">
+            <span className="sr-only">団体名や活動内容で検索</span>
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20">
+              <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
+              <path d="m16 16 4 4" fill="none" stroke="currentColor" strokeWidth="1.8" />
+            </svg>
+            <input
+              type="search"
+              value={filters.q}
+              onChange={(event) => applyFilters({ q: event.target.value })}
+              placeholder="団体名・活動内容で検索"
+            />
+          </label>
+          <button type="button" className="filter-button" onClick={() => setSheetOpen(true)}>
+            絞り込み
+            {conditionCount > 0 && <span>{conditionCount}</span>}
+          </button>
+        </div>
+
+        {conditionCount > 0 && (
+          <div className="active-filter-row">
+            <span>{conditionCount}個の条件を適用中</span>
+            <button type="button" onClick={() => applyFilters({ ...EMPTY_FILTERS, q: filters.q })}>条件をクリア</button>
           </div>
         )}
 
-        <div className="circle-grid">
-          {visible.map((id, order) => {
-            const o = byId[id];
-            if (!o) return null;
-            const going = leaving.indexOf(o.id) >= 0;
-            const shape = tileShapeForId(o.id);
-            return (
+        {filtered.length ? (
+          <div className="directory-grid">
+            {filtered.map((circle, index) => (
               <Link
-                key={o.id}
-                href={`/c/${o.id}${filtersToQuery(f)}`}
-                // 押した瞬間のタイルの位置を控える。詳細のヒーローはここから広がる
-                onClick={(e) => rememberTile(o.id, e.currentTarget)}
-                data-org={o.id}
-                data-reveal="1"
-                className={`circle-tile circle-tile--${shape}`}
-                style={{
-                  opacity: going ? 0 : undefined,
-                  transform: going ? "scale(0.96)" : undefined,
-                  transition: going ? "opacity 180ms ease-out, transform 180ms ease-out" : undefined,
-                }}
+                key={circle.id}
+                href={`/c/${circle.id}${filtersToQuery(filters)}`}
+                className="directory-link"
               >
-                {/* 先頭の3枚は最初の画面に入る（390px 幅で実測）。遅延読み込みにしない */}
-                <CircleTile circle={o} shape={shape} priority={order < 3} />
+                <CircleTile circle={circle} priority={index < 2} />
               </Link>
-            );
-          })}
-        </div>
-      </div>
-
-      <div
-        style={{
-          position: "sticky",
-          bottom: 0,
-          padding: "12px 20px 20px",
-          background: `linear-gradient(to top,${BG} 62%,rgba(239,239,235,0))`,
-        }}
-      >
-        <button type="button" onClick={() => setSheetOpen(true)} style={{ ...BUTTON_RESET, ...BIG_BTN, width: "100%" }}>
-          <span>絞り込み</span>
-          <span>•</span>
-          {filterCount > 0 && (
-            <span
-              style={{
-                ...num(12, INK),
-                minWidth: 22,
-                height: 22,
-                padding: "0 6px",
-                borderRadius: 11,
-                background: WHITE,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              {filterCount}
-            </span>
-          )}
-        </button>
-      </div>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-result">
+            <h3>条件に合う団体がありません</h3>
+            <p>検索語や絞り込み条件を少し変えてみてください。</p>
+            <button type="button" onClick={() => applyFilters(EMPTY_FILTERS)}>すべての条件をクリア</button>
+          </div>
+        )}
+      </section>
 
       {sheetOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "flex-end",
-            zIndex: 20,
-          }}
-        >
-          <div
-            onClick={() => setSheetOpen(false)}
-            style={{ position: "absolute", inset: 0, background: "rgba(20,22,26,0.42)" }}
-          />
-          <div
-            style={{
-              position: "relative",
-              width: "100%",
-              maxWidth: 960,
-              background: BG,
-              maxHeight: "88vh",
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <div
-              style={{
-                padding: "18px 20px 14px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <div
-                style={{
-                  fontFamily: "var(--font-zen), sans-serif",
-                  fontWeight: 700,
-                  fontSize: 18,
-                  letterSpacing: "-0.04em",
-                  color: INK,
-                }}
-              >
-                絞り込み
+        <div className="filter-dialog" role="dialog" aria-modal="true" aria-labelledby="filter-title">
+          <button className="filter-dialog__backdrop" aria-label="絞り込みを閉じる" onClick={() => setSheetOpen(false)} />
+          <div className="filter-sheet">
+            <div className="filter-sheet__header">
+              <div>
+                <p className="section-kicker">条件を組み合わせる</p>
+                <h2 id="filter-title">絞り込み</h2>
               </div>
-              <button
-                type="button"
-                onClick={() => setSheetOpen(false)}
-                style={{ ...BUTTON_RESET, fontSize: 13, color: INK_MID, cursor: "pointer", padding: "12px 8px", minHeight: 44 }}
-              >
-                閉じる
-              </button>
+              <button type="button" onClick={() => setSheetOpen(false)}>閉じる</button>
             </div>
-
-            <div style={{ overflowY: "auto", padding: "6px 20px 22px" }}>
-              <SheetHeading>空いている曜日</SheetHeading>
-              <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
-                {DAY_ORDER.map((dayIdx) => {
-                  const on = f.days.indexOf(dayIdx) >= 0;
+            <div className="filter-sheet__body">
+              <FilterHeading>この曜日に活動</FilterHeading>
+              <div className="day-filters">
+                {DAY_ORDER.map((day) => {
+                  const on = filters.days.includes(day);
                   return (
-                    <button
-                      type="button"
-                      key={dayIdx}
-                      aria-pressed={on}
-                      onClick={() => toggleIn("days", dayIdx)}
-                      style={{
-                        ...BUTTON_RESET,
-                        width: 44,
-                        height: 44,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 14,
-                        cursor: "pointer",
-                        borderRadius: 999,
-                        background: on ? INK : WHITE,
-                        color: on ? WHITE : INK,
-                        boxShadow: on ? "none" : "inset 0 0 0 1px " + RULE,
-                      }}
-                    >
-                      {DAY_LABELS[dayIdx]}
+                    <button type="button" key={day} aria-pressed={on} onClick={() => toggleIn("days", day)} className={on ? "is-active" : ""}>
+                      {DAY_LABELS[day]}
                     </button>
                   );
                 })}
               </div>
 
-              <SheetHeading top>区分</SheetHeading>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-                {CATS.map((c) => (
-                  <button
-                    type="button"
-                    key={c}
-                    aria-pressed={f.cats.indexOf(c) >= 0}
-                    onClick={() => toggleIn("cats", c)}
-                    style={{ ...BUTTON_RESET, ...chipStyle(f.cats.indexOf(c) >= 0) }}
-                  >
-                    {c}
+              <FilterHeading>区分</FilterHeading>
+              <div className="chip-row">
+                {CATS.map((category) => (
+                  <button type="button" key={category} aria-pressed={filters.cats.includes(category)} onClick={() => toggleIn("cats", category)} style={{ ...BUTTON_RESET, ...chipStyle(filters.cats.includes(category)) }}>
+                    {category}
                   </button>
                 ))}
               </div>
 
-              <SheetHeading top>ジャンル</SheetHeading>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-                {GENRES.map((c) => (
-                  <button
-                    type="button"
-                    key={c}
-                    aria-pressed={f.genres.indexOf(c) >= 0}
-                    onClick={() => toggleIn("genres", c)}
-                    style={{ ...BUTTON_RESET, ...chipStyle(f.genres.indexOf(c) >= 0) }}
-                  >
-                    <div
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: 4,
-                        background: genreColor(c),
-                        flex: "0 0 8px",
-                      }}
-                    />
-                    <span>{c}</span>
+              <FilterHeading>ジャンル</FilterHeading>
+              <div className="chip-row">
+                {GENRES.map((genre) => (
+                  <button type="button" key={genre} aria-pressed={filters.genres.includes(genre)} onClick={() => toggleIn("genres", genre)} style={{ ...BUTTON_RESET, ...chipStyle(filters.genres.includes(genre)) }}>
+                    <span className="genre-dot" style={{ background: genreColor(genre) }} />{genre}
                   </button>
                 ))}
               </div>
 
-              <SheetHeading top>年会費</SheetHeading>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-                {FEES.map((c) => (
-                  <button
-                    type="button"
-                    key={c}
-                    aria-pressed={f.fee === c}
-                    onClick={() => applyFilters({ fee: c })}
-                    style={{ ...BUTTON_RESET, ...chipStyle(f.fee === c) }}
-                  >
-                    {c}
+              <FilterHeading>年会費</FilterHeading>
+              <div className="chip-row">
+                {FEES.map((fee) => (
+                  <button type="button" key={fee} aria-pressed={filters.fee === fee} onClick={() => applyFilters({ fee })} style={{ ...BUTTON_RESET, ...chipStyle(filters.fee === fee) }}>
+                    {fee}
                   </button>
                 ))}
               </div>
 
-              <div style={{ marginTop: 26, borderTop: "1px solid " + RULE }}>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={f.beginner}
-                  onClick={() => applyFilters({ beginner: !f.beginner })}
-                  style={{
-                    ...BUTTON_RESET,
-                    width: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    height: 54,
-                    borderBottom: "1px solid " + RULE,
-                    cursor: "pointer",
-                  }}
-                >
-                  <div style={{ fontSize: 14, color: INK }}>初心者がいる団体だけ</div>
-                  <div style={switchTrack(f.beginner)}>
-                    <div style={switchKnob(f.beginner)} />
-                  </div>
-                </button>
-              </div>
+              <button type="button" role="switch" aria-checked={filters.beginner} className="beginner-switch" onClick={() => applyFilters({ beginner: !filters.beginner })}>
+                <span>初心者がいる団体だけ</span>
+                <span style={switchTrack(filters.beginner)} aria-hidden="true"><span style={switchKnob(filters.beginner)} /></span>
+              </button>
             </div>
-
-            <div
-              style={{
-                padding: "12px 20px 20px",
-                display: "flex",
-                gap: 10,
-                alignItems: "center",
-                background: BG,
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => applyFilters(EMPTY_FILTERS)}
-                style={{
-                  ...BUTTON_RESET,
-                  height: 52,
-                  padding: "0 16px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 13,
-                  color: INK_MID,
-                  cursor: "pointer",
-                }}
-              >
-                条件をクリア
-              </button>
-              <button
-                type="button"
-                onClick={() => setSheetOpen(false)}
-                style={{ ...BUTTON_RESET, ...BIG_BTN, flex: 1, height: 52 }}
-              >
-                {filteredCount}件を表示 •
-              </button>
+            <div className="filter-sheet__footer">
+              <button type="button" className="clear-button" onClick={() => applyFilters({ ...EMPTY_FILTERS, q: filters.q })}>条件をクリア</button>
+              <button type="button" className="show-button" onClick={() => setSheetOpen(false)}>{filtered.length}件を表示</button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </main>
   );
 }
 
-function SheetHeading({ children, top }: { children: React.ReactNode; top?: boolean }) {
-  return (
-    <div
-      style={{
-        fontFamily: "var(--font-zen), sans-serif",
-        fontWeight: 700,
-        fontSize: 14,
-        color: INK,
-        letterSpacing: "-0.04em",
-        marginTop: top ? 26 : undefined,
-      }}
-    >
-      {children}
-    </div>
-  );
+function FilterHeading({ children }: { children: React.ReactNode }) {
+  return <h3 className="filter-heading">{children}</h3>;
 }

@@ -24,6 +24,7 @@ export default function HomeWithFilters({ circles }: { circles: Circle[] }) {
 
   const initial: Filters = {
     ...EMPTY_FILTERS,
+    q: sp.get("q") ?? "",
     days: list(sp.get("days"))
       .map((s) => Number(s))
       .filter((n) => Number.isInteger(n) && n >= 0 && n <= 6),

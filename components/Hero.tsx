@@ -1,24 +1,12 @@
 "use client";
 
-// 団体ページ（S-02）のヒーロー。design/ksu-circles-v3.dc.html の `isDetail` の上半分の移植。
-//
-// - 全画面（100dvh）の写真からゆっくりズームイン
-// - スクロールすると写真が背後に沈み、上部にナビが出る
-// - 写真が2枚以上なら 6秒後→以降5秒ごとにクロスフェード。触ったら止めて再開しない
-//   （docs/ui/08-carousel.md §3-1）
-//
-// 移植元は image-slot に写真を差していたが、こちらは /public/photos の実ファイルを読む。
-// 読み込みに失敗した写真は候補から外し、全滅したらジャンル色のベタ塗りに落とす（CLAUDE.md §6）。
-
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import type { Circle } from "@/types/circle";
-import { BG, BUTTON_RESET, EASE, INK, PHOTO, RULE, genreColor, photoBgSrc, photoSrc, photoSrcSet } from "@/lib/design";
+import { genreColor, photoBgSrc, photoSrc, photoSrcSet } from "@/lib/design";
 import { divisionText } from "@/lib/labels";
 import InitialTile from "@/components/InitialTile";
-import { playHeroEnter, playHeroExit } from "@/lib/flip";
-import { DETAIL_REVEAL_TRANSITION } from "@/lib/motion";
 import { usePrefersReducedMotion } from "@/components/usePrefersReducedMotion";
 
 const FIRST_DELAY = 6000;
@@ -26,579 +14,137 @@ const SLIDE_DELAY = 5000;
 
 export default function Hero({ circle }: { circle: Circle }) {
   const router = useRouter();
-
-  const navRef = useRef<HTMLDivElement>(null);
-  const stageRef = useRef<HTMLDivElement>(null);
-  const heroRef = useRef<HTMLDivElement>(null);
-  const cueRef = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ x: number; y: number; axis: "x" | "y" | null; dx: number } | null>(null);
-  const slideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const firstShown = useRef(false);
-  const cueShown = useRef(false);
-
+  const reduced = usePrefersReducedMotion();
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const drag = useRef<{ x: number; y: number; axis: "x" | "y" | null } | null>(null);
   const [broken, setBroken] = useState<Record<string, true>>({});
   const [slide, setSlide] = useState(0);
   const [autoplay, setAutoplay] = useState(true);
-  const [heroVisible, setHeroVisible] = useState(true);
-  const [hidden, setHidden] = useState(false);
-  const [dragX, setDragX] = useState(0);
-  const [hiResFile, setHiResFile] = useState<string | null>(null);
-  const reduced = usePrefersReducedMotion();
 
-  const heroFiles = circle.photos.length > 0 ? circle.photos.slice(0, 5) : circle.icon ? [circle.icon] : [];
-  const photos = heroFiles.filter((p) => !broken[p]);
-  const hasPhoto = photos.length > 0;
-  const showCarousel = photos.length > 1;
-  const idx = photos.length ? slide % photos.length : 0;
-  const auto = !reduced && autoplay && heroVisible && !hidden && showCarousel;
+  const files = useMemo(
+    () => (circle.photos.length ? circle.photos : circle.icon ? [circle.icon] : []).filter((file) => !broken[file]),
+    [circle.icon, circle.photos, broken]
+  );
+  const index = files.length ? slide % files.length : 0;
+  const showCarousel = files.length > 1;
 
-  const firstFile = photos.length > 0 ? photos[0] : null;
-
-  // 1枚目は @600 を先に出し、幅1200が読めてから静かに差し替える。
   useEffect(() => {
-    if (!firstFile) return;
-    const img = new window.Image();
-    img.onload = () => setHiResFile(firstFile);
-    img.src = photoSrc(firstFile, "large");
-    return () => {
-      img.onload = null;
-    };
-  }, [firstFile]);
-
-  // 「どの写真の高解像度が読めたか」で持つ。差し替え待ちを state のリセットで表さない
-  const firstHiRes = firstFile !== null && hiResFile === firstFile;
-
-  // --- 自動送り ------------------------------------------------------------
-  const scheduleSlide = useCallback(() => {
-    clearTimeout(slideTimer.current);
-    if (reduced || !autoplay || !heroVisible || hidden || photos.length < 2) return;
-    const first = !firstShown.current;
-    firstShown.current = true;
-    slideTimer.current = setTimeout(
-      () => setSlide((s) => (s + 1) % photos.length),
-      first ? FIRST_DELAY : SLIDE_DELAY
+    clearTimeout(timer.current);
+    if (reduced || !autoplay || !showCarousel) return;
+    timer.current = setTimeout(
+      () => setSlide((current) => (current + 1) % files.length),
+      slide === 0 ? FIRST_DELAY : SLIDE_DELAY
     );
-  }, [reduced, autoplay, heroVisible, hidden, photos.length]);
-
-  useEffect(() => {
-    scheduleSlide();
-    return () => clearTimeout(slideTimer.current);
-  }, [scheduleSlide, slide]);
-
-  useEffect(() => {
-    const onVis = () => setHidden(document.hidden);
-    document.addEventListener("visibilitychange", onVis);
-    return () => document.removeEventListener("visibilitychange", onVis);
-  }, []);
-
-  // --- スクロールで写真が沈む（移植元の driveHero） -------------------------
-  useEffect(() => {
-    const drive = () => {
-      const y = window.scrollY || 0;
-      const vh = window.innerHeight || 1;
-      const p = Math.min(1, Math.max(0, y / vh));
-      const hero = heroRef.current;
-      if (hero) {
-        hero.style.filter = "brightness(" + (1 - p * 0.45).toFixed(3) + ")";
-        if (p > 0) hero.style.transformOrigin = "50% 40%";
-      }
-      const nav = navRef.current;
-      if (nav) nav.style.transform = p > 0.92 ? "translateY(0)" : "translateY(-100%)";
-      setHeroVisible(p < 0.5);
-      if (y > 0 && !cueShown.current) {
-        cueShown.current = true;
-        if (cueRef.current) cueRef.current.style.opacity = "0";
-      }
-    };
-    window.addEventListener("scroll", drive, { passive: true });
-    drive();
-    return () => window.removeEventListener("scroll", drive);
-  }, []);
-
-  // スクロール誘導は 2.6秒後に出す（移植元と同じ）
-  useEffect(() => {
-    if (reduced) return;
-    const t = setTimeout(() => {
-      if (cueRef.current && !cueShown.current) cueRef.current.style.opacity = "1";
-    }, 2600);
-    return () => clearTimeout(t);
-  }, [reduced]);
+    return () => clearTimeout(timer.current);
+  }, [autoplay, files.length, reduced, showCarousel, slide]);
 
   const stopAuto = () => {
-    clearTimeout(slideTimer.current);
+    clearTimeout(timer.current);
     setAutoplay(false);
   };
 
-  const goSlide = (n: number) => {
-    if (photos.length < 2) return;
-    clearTimeout(slideTimer.current);
-    setSlide(((n % photos.length) + photos.length) % photos.length);
-    setAutoplay(false);
+  const goTo = (next: number) => {
+    stopAuto();
+    if (files.length) setSlide((next + files.length) % files.length);
   };
 
-  // --- 指で動かす（縦スクロールを優先。docs/ui/08-carousel.md §3） ----------
-  const onDragStart = (e: React.PointerEvent) => {
-    if (photos.length < 2) return;
-    drag.current = { x: e.clientX, y: e.clientY, axis: null, dx: 0 };
+  const onPointerDown = (event: React.PointerEvent) => {
+    if (!showCarousel) return;
+    drag.current = { x: event.clientX, y: event.clientY, axis: null };
   };
-  const onDragMove = (e: React.PointerEvent) => {
-    const d = drag.current;
-    if (!d) return;
-    const dx = e.clientX - d.x;
-    const dy = e.clientY - d.y;
-    if (!d.axis) {
-      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-      d.axis = Math.abs(dx) > Math.abs(dy) * 1.4 ? "x" : "y";
-      if (d.axis === "y") {
-        drag.current = null;
-        return;
-      }
-      stopAuto();
+  const onPointerMove = (event: React.PointerEvent) => {
+    const state = drag.current;
+    if (!state || state.axis === "y") return;
+    const dx = event.clientX - state.x;
+    const dy = event.clientY - state.y;
+    if (!state.axis && Math.max(Math.abs(dx), Math.abs(dy)) > 8) {
+      state.axis = Math.abs(dx) > Math.abs(dy) * 1.4 ? "x" : "y";
+      if (state.axis === "x") stopAuto();
     }
-    d.dx = dx;
-    setDragX(dx);
   };
-  const onDragEnd = () => {
-    const d = drag.current;
-    if (!d) return;
-    const { dx, axis } = d;
+  const onPointerUp = (event: React.PointerEvent) => {
+    const state = drag.current;
     drag.current = null;
-    setDragX(0);
-    if (axis !== "x") return;
-    const w = window.innerWidth || 1;
-    if (Math.abs(dx) > w * 0.2) goSlide(slide + (dx < 0 ? 1 : -1));
+    if (!state || state.axis !== "x") return;
+    const dx = event.clientX - state.x;
+    if (Math.abs(dx) > Math.min(90, window.innerWidth * 0.18)) goTo(slide + (dx < 0 ? 1 : -1));
   };
 
-  /** 一覧へ戻る。一覧から来ていれば絞り込みごと戻したいので history を優先する */
   const back = () => {
     if (window.history.length > 1) router.back();
     else router.push("/");
   };
 
-  // 一覧との行き来の拡大・縮小（lib/flip.ts）。
-  //
-  // 縮小を popstate で始めることはできない。React 19 は popstate の更新を
-  // その場で流すので、popstate のリスナが呼ばれる頃には詳細のDOMがもう無い。
-  // **片づけ関数**なら、Reactが要素を外す直前に呼ばれるのでまだ実体が残っている。
-  // 自前の戻るボタンも端末の戻る操作も、どちらもここを通る。
-  useLayoutEffect(() => {
-    playHeroEnter(heroRef.current, stageRef.current, circle.id, reduced);
-    const stage = stageRef.current;
-    return () => {
-      // 開発時の二度掛けでは行き先が変わっていない。そのときは何もしない
-      if (window.location.pathname === `/c/${circle.id}`) return;
-      playHeroExit(stage, circle.id, reduced);
-    };
-    // 初回の描画時だけ。reduced の変化で演出をやり直さない
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   return (
-    <>
-      <div
-        ref={navRef}
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 12,
-          height: 52,
-          background: BG,
-          borderBottom: "1px solid " + RULE,
-          display: "flex",
-          alignItems: "center",
-          transform: "translateY(-100%)",
-          transition: "transform 240ms cubic-bezier(.2,.7,.3,1)",
-        }}
+    <section
+      className="detail-hero"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={() => { drag.current = null; }}
+    >
+      <motion.div
+        layoutId={`circle-media-${circle.id}`}
+        className="detail-hero__media"
+        style={{ background: genreColor(circle.genre) }}
+        transition={{ type: "spring", stiffness: 300, damping: 34, mass: 0.8 }}
       >
-        <div
-          style={{
-            width: "100%",
-            maxWidth: 960,
-            margin: "0 auto",
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "0 20px",
-          }}
-        >
-          <button
-            type="button"
-            onClick={back}
-            aria-label="一覧へ戻る"
-            style={{
-              ...BUTTON_RESET,
-              display: "flex",
-              alignItems: "center",
-              height: 44,
-              minWidth: 44,
-              fontSize: 13,
-              color: INK,
-              cursor: "pointer",
-              flex: "0 0 auto",
-            }}
-          >
-            ⟨ 一覧
-          </button>
-          <div
-            style={{
-              flex: 1,
-              minWidth: 0,
-              fontSize: 14,
-              color: INK,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              textAlign: "center",
-            }}
-          >
-            {circle.short_name}
+        {!files.length && <InitialTile circle={circle} />}
+        {files.map((file, fileIndex) => (
+          <div key={file} className={`detail-hero__slide ${fileIndex === index ? "is-active" : ""}`}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              className="detail-hero__blur"
+              src={photoBgSrc(file) ?? photoSrc(file, "thumb")}
+              alt=""
+              aria-hidden="true"
+              width={48}
+              height={32}
+            />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              className="detail-hero__photo"
+              src={photoSrc(file, fileIndex === 0 ? "large" : "thumb")}
+              srcSet={photoSrcSet(file)}
+              sizes="(min-width: 1440px) 1440px, 100vw"
+              alt={`${circle.short_name}の活動写真 ${fileIndex + 1}`}
+              width={1200}
+              height={800}
+              loading={fileIndex === 0 ? "eager" : "lazy"}
+              fetchPriority={fileIndex === 0 ? "high" : undefined}
+              onError={() => setBroken((current) => ({ ...current, [file]: true }))}
+            />
           </div>
-          <div style={{ flex: "0 0 44px" }} />
-        </div>
-      </div>
+        ))}
+      </motion.div>
 
-      <div
-        ref={stageRef}
-        data-hero-stage={circle.id}
-        onPointerDown={onDragStart}
-        onPointerMove={onDragMove}
-        onPointerUp={onDragEnd}
-        onPointerCancel={onDragEnd}
-        style={{
-          position: "sticky",
-          top: 0,
-          height: "100dvh",
-          overflow: "hidden",
-          zIndex: 0,
-          touchAction: "pan-y",
-        }}
-      >
-        <div
-          ref={heroRef}
-          data-shared-image={circle.id}
-          style={{
-            position: "absolute",
-            inset: 0,
-            overflow: "hidden",
-            borderRadius: 0,
-            transformOrigin: "50% 50%",
-            background: hasPhoto ? PHOTO : genreColor(circle.genre),
-            filter: "brightness(" + (hasPhoto ? 0.94 : 1) + ")",
-            animation:
-              !hasPhoto && !reduced
-                ? "heroZoomIn 16000ms cubic-bezier(.25,.1,.25,1) both"
-                : undefined,
-          }}
-        >
-          {/* 写真が1枚も無い団体。一覧のタイルと同じ頭文字タイルがそのまま広がる */}
-          {!hasPhoto && <InitialTile circle={circle} />}
+      <div className="detail-hero__veil" />
+      <button type="button" className="detail-back" onClick={back} aria-label="団体一覧へ戻る">← <span>一覧へ戻る</span></button>
 
-          {photos.map((file, i) => {
-            const on = i === idx;
-            return (
-              <div
+      <div className="detail-hero__copy">
+        <div className="detail-hero__classification">{divisionText(circle)}</div>
+        <h1>{circle.short_name}</h1>
+        {circle.name !== circle.short_name && <p>{circle.name}</p>}
+        {showCarousel && (
+          <div className="detail-hero__controls" aria-label="活動写真">
+            {files.map((file, fileIndex) => (
+              <button
+                type="button"
                 key={file}
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  opacity: on ? 1 : 0,
-                  transition: "opacity 700ms ease-in-out",
-                  transform: on && dragX ? "translateX(" + dragX * 0.4 + "px)" : undefined,
-                  animation:
-                    on && !reduced
-                      ? i === 0
-                        ? "heroZoomIn 16000ms cubic-bezier(.25,.1,.25,1) both"
-                        : "slideZoom 5200ms cubic-bezier(.25,.1,.25,1) both"
-                      : undefined,
-                }}
-              >
-                {/* 背面: 同じ写真をぼかして画面いっぱいに敷く。前面で切らずに出した写真の上下（PCでは左右）を埋める。
-                    縮小版（幅48）を引き伸ばしてぼかしの代わりにする。CSS の blur はズーム中に毎フレーム描き直しになるので、
-                    縮小版が無い写真のときだけ使う */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={photoBgSrc(file) ?? photoSrc(file, "thumb")}
-                  alt=""
-                  aria-hidden="true"
-                  width={48}
-                  height={32}
-                  loading={i === 0 ? "eager" : "lazy"}
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                    display: "block",
-                    transform: "scale(1.08)",
-                    filter: photoBgSrc(file) ? "brightness(.62)" : "blur(24px) brightness(.62)",
-                  }}
-                />
-                {/* 前面: 写真を切らずに全体を出す（3:2 を縦長の画面いっぱいに切ると、横幅の約3割しか見えなかった） */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={i === 0 && !firstHiRes ? photoSrc(file, "thumb") : photoSrc(file, "large")}
-                  srcSet={i === 0 && !firstHiRes ? undefined : photoSrcSet(file)}
-                  sizes="(min-width: 960px) 960px, 100vw"
-                  alt=""
-                  width={1200}
-                  height={800}
-                  loading={i === 0 ? "eager" : "lazy"}
-                  fetchPriority={i === 0 ? "high" : undefined}
-                  onError={() => setBroken((b) => ({ ...b, [file]: true }))}
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "contain",
-                    display: "block",
-                  }}
-                />
-              </div>
-            );
-          })}
-        </div>
-
-        <motion.div
-          data-hero-chrome=""
-          initial={reduced ? false : { opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={reduced ? { duration: 0 } : DETAIL_REVEAL_TRANSITION}
-          style={{
-            position: "absolute",
-            inset: 0,
-            pointerEvents: "none",
-            background:
-              "linear-gradient(to top, rgba(27,26,24,.86) 0%, rgba(27,26,24,.34) 42%, rgba(27,26,24,.06) 68%, rgba(27,26,24,.22) 100%)",
-          }}
-        />
-
-        <motion.button
-          type="button"
-          data-hero-chrome=""
-          initial={reduced ? false : { opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={reduced ? { duration: 0 } : DETAIL_REVEAL_TRANSITION}
-          onClick={back}
-          aria-label="一覧へ戻る"
-          style={{
-            ...BUTTON_RESET,
-            position: "absolute",
-            left: 20,
-            top: 20,
-            width: 44,
-            height: 44,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 20,
-            color: "#FFFFFF",
-            cursor: "pointer",
-            zIndex: 3,
-          }}
-        >
-          ⟨
-        </motion.button>
-
-        <motion.div
-          data-hero-chrome=""
-          initial={reduced ? false : { opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={reduced ? { duration: 0 } : DETAIL_REVEAL_TRANSITION}
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            bottom: 0,
-            padding: "0 20px 56px",
-            zIndex: 2,
-            pointerEvents: "none",
-          }}
-        >
-          <div
-            style={
-              showCarousel
-                ? {
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 0,
-                    marginBottom: 4,
-                    // 押せる範囲は 44px 幅。見た目の点（5px）を本文の左端にそろえる
-                    marginLeft: -20,
-                  }
-                : { display: "none" }
-            }
-          >
-            {showCarousel &&
-              photos.map((file, i) => (
-                <button
-                  type="button"
-                  key={file}
-                  onClick={() => goSlide(i)}
-                  aria-label={`${i + 1}枚目`}
-                  aria-current={i === idx ? "true" : undefined}
-                  style={{
-                    ...BUTTON_RESET,
-                    width: 44,
-                    height: 44,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    pointerEvents: "auto",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: i === idx && auto ? 18 : 5,
-                      height: 5,
-                      borderRadius: 3,
-                      overflow: "hidden",
-                      background:
-                        i === idx
-                          ? auto
-                            ? "rgba(255,255,255,.35)"
-                            : "#FFFFFF"
-                          : "rgba(255,255,255,.45)",
-                      transition: "width 240ms " + EASE,
-                    }}
-                  >
-                    <div
-                      style={
-                        i === idx && auto
-                          ? {
-                              height: "100%",
-                              background: "#FFFFFF",
-                              animation: "dotFill 5000ms linear both",
-                            }
-                          : { display: "none" }
-                      }
-                    />
-                  </div>
-                </button>
-              ))}
-            <button
-              type="button"
-              onClick={() => {
-                if (autoplay) stopAuto();
-                else {
-                  firstShown.current = true;
-                  setAutoplay(true);
-                }
-              }}
-              aria-label={auto ? "自動送りを止める" : "自動送りを再開する"}
-              style={
-                showCarousel
-                  ? {
-                      ...BUTTON_RESET,
-                      width: 44,
-                      height: 44,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 11,
-                      color: "rgba(255,255,255,.7)",
-                      cursor: "pointer",
-                      pointerEvents: "auto",
-                    }
-                  : { display: "none" }
-              }
-            >
-              {auto ? "⏸" : "▶"}
-            </button>
+                onClick={() => goTo(fileIndex)}
+                aria-label={`${fileIndex + 1}枚目を表示`}
+                aria-current={fileIndex === index ? "true" : undefined}
+                className={fileIndex === index ? "is-active" : ""}
+              />
+            ))}
+            {autoplay ? (
+              <button type="button" className="detail-hero__pause" onClick={stopAuto}>自動送りを止める</button>
+            ) : (
+              <span className="detail-hero__stopped">自動送り停止中</span>
+            )}
           </div>
-
-          <div
-            style={{
-              fontSize: 11,
-              letterSpacing: "0.14em",
-              fontWeight: 500,
-              color: "rgba(255,255,255,.78)",
-              animation: "heroUp 700ms cubic-bezier(.2,.7,.3,1) both",
-              animationDelay: "300ms",
-            }}
-          >
-            {divisionText(circle)}
-          </div>
-          <div
-            style={{
-              fontFamily: "var(--font-zen), sans-serif",
-              fontWeight: 700,
-              fontSize: hasPhoto ? 40 : 46,
-              lineHeight: 1.22,
-              letterSpacing: "-0.03em",
-              color: "#FFFFFF",
-              marginTop: 12,
-              textWrap: "pretty",
-              animation: "heroUp 700ms cubic-bezier(.2,.7,.3,1) both",
-              animationDelay: "380ms",
-            }}
-          >
-            {circle.short_name}
-          </div>
-          <div
-            style={{
-              fontSize: 13,
-              color: "rgba(255,255,255,.72)",
-              marginTop: 10,
-              lineHeight: 1.6,
-              animation: "heroUp 700ms cubic-bezier(.2,.7,.3,1) both",
-              animationDelay: "520ms",
-            }}
-          >
-            {circle.name}
-          </div>
-        </motion.div>
-
-        <div
-          ref={cueRef}
-          data-hero-chrome=""
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            bottom: 20,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 6,
-            opacity: 0,
-            transition: "opacity 400ms ease-out",
-            pointerEvents: "none",
-            zIndex: 2,
-          }}
-        >
-          <div style={{ fontSize: 10, letterSpacing: "0.2em", color: "rgba(255,255,255,.6)" }}>
-            SCROLL
-          </div>
-          <div style={{ width: 18, height: 10, animation: "cueBob 2400ms ease-in-out infinite" }}>
-            <div
-              style={{
-                width: 11,
-                height: 1.5,
-                background: "rgba(255,255,255,.7)",
-                transform: "rotate(35deg)",
-                transformOrigin: "left center",
-                position: "absolute",
-              }}
-            />
-            <div
-              style={{
-                width: 11,
-                height: 1.5,
-                background: "rgba(255,255,255,.7)",
-                transform: "rotate(-35deg) translateX(-11px)",
-                transformOrigin: "right center",
-                position: "absolute",
-                left: 18,
-              }}
-            />
-          </div>
-        </div>
+        )}
       </div>
-    </>
+    </section>
   );
 }

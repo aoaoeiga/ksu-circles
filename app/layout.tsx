@@ -38,7 +38,7 @@ export default function RootLayout({
     // 以前の Google Fonts の <link> は、読み終わるまで描画を止めていた（docs/ui-audit-2026-09-24.md F1）
     <html lang="ja" className={fontVariables}>
       <body>
-        {/* 移植元の外側2枚のラッパ。PCでは中央1カラム（最大960px） */}
+        {/* 温かい紙色の上に、編集的な写真レイアウトを置く。 */}
         <div
           style={{
             minHeight: "100vh",
@@ -50,7 +50,7 @@ export default function RootLayout({
           <div
             style={{
               width: "100%",
-              maxWidth: 960,
+              maxWidth: 1440,
               background: BG,
               minHeight: "100vh",
               position: "relative",

@@ -8,23 +8,23 @@ import type { Category, Genre } from "@/types/circle";
 import type { CSSProperties } from "react";
 
 /** 移植元の色。名前は docs/ui/06-design-reference.md の呼び名に合わせた */
-export const INK = "#14213A";
+export const INK = "#17211D";
 /**
  * 補助の文字色。11px のラベルに使うので、地（#EFEFEB）の上で 4.5:1 以上にする。
  * 移植元の #6B7484 は 4.09:1 で足りなかった。docs/ui/02-ui-spec.md の ink-mid（#5A6478）に戻して 5.16:1
  */
-export const INK_MID = "#5A6478";
-export const BG = "#EFEFEB";
-export const RULE = "#E2E2DB";
-export const WHITE = "#FFFFFF";
-export const DARK = "#1B1A18";
-export const PHOTO = "#40434A";
+export const INK_MID = "#5E675F";
+export const BG = "#F6F1E8";
+export const RULE = "#DDD5C8";
+export const WHITE = "#FFFDF8";
+export const DARK = "#17211D";
+export const PHOTO = "#3F443F";
 
-/** 山吹。「一致」にしか使わない（CLAUDE.md §5）。ボタン・リンク・装飾に流用しない */
-export const MATCH = "#E8A33D";
+/** 落ち着いた朱茶。選択・一致・主要導線だけに使う（CLAUDE.md §5） */
+export const MATCH = "#984738";
 
 export const EASE = "cubic-bezier(0.16,1,0.3,1)";
-export const SHADOW = "0 1px 2px rgba(20,33,58,.04), 0 10px 28px rgba(20,33,58,.06)";
+export const SHADOW = "0 1px 0 rgba(23,33,29,.04), 0 14px 40px rgba(23,33,29,.07)";
 
 /**
  * 曜日の並び。
@@ -137,7 +137,7 @@ export function chipStyle(active: boolean): CSSProperties {
     fontSize: 13,
     cursor: "pointer",
     borderRadius: 999,
-    background: active ? INK : WHITE,
+    background: active ? MATCH : WHITE,
     color: active ? WHITE : INK,
     boxShadow: active ? "none" : "inset 0 0 0 1px " + RULE,
   };
@@ -148,7 +148,7 @@ export function switchTrack(on: boolean): CSSProperties {
     width: 48,
     height: 28,
     borderRadius: 999,
-    background: on ? INK : WHITE,
+    background: on ? MATCH : WHITE,
     boxShadow: on ? "none" : "inset 0 0 0 1px " + RULE,
     display: "flex",
     alignItems: "center",
@@ -182,9 +182,9 @@ export const BIG_BTN: CSSProperties = {
 /** 白いカード。活動日カード・数字カード・ABOUT で使い回す（docs/ui/07-content.md §3） */
 export const CARD: CSSProperties = {
   background: WHITE,
-  borderRadius: 16,
+  borderRadius: 18,
   padding: 20,
-  boxShadow: SHADOW,
+  boxShadow: "inset 0 0 0 1px " + RULE,
 };
 
 /** セクション見出しの小さいラベル */

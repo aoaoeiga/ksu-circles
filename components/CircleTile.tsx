@@ -1,70 +1,83 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "framer-motion";
 import type { Circle } from "@/types/circle";
 import InitialTile from "@/components/InitialTile";
+import { DAY_LABELS, feeLabel } from "@/lib/gender";
 import { genreColor, photoSrc, photoSrcSet } from "@/lib/design";
-import type { TileShape } from "@/lib/tile-layout";
-
-/**
- * タイルが画面で占める幅。app/globals.css の .circle-grid に合わせる
- * （スマホは2列、768px 以上は最大 960px の4列。wide / large は2列ぶん）
- */
-const SIZES: Record<TileShape, string> = {
-  square: "(min-width: 960px) 240px, (min-width: 768px) 25vw, 50vw",
-  wide: "(min-width: 960px) 480px, (min-width: 768px) 50vw, 100vw",
-  large: "(min-width: 960px) 480px, (min-width: 768px) 50vw, 100vw",
-};
 
 export default function CircleTile({
   circle,
-  shape,
   priority = false,
 }: {
   circle: Circle;
-  shape: TileShape;
-  /** 最初の画面に入るタイル。遅延読み込みにしない（LCP を遅らせないため） */
   priority?: boolean;
 }) {
   const [sourceIndex, setSourceIndex] = useState(0);
-  // 詳細ヒーローと同じ写真を優先し、写真がない団体だけアイコンを使う。
-  const sources = [circle.photos[0], circle.icon].filter(
+  const [pressed, setPressed] = useState(false);
+  // 一覧は icon が正。読み込み失敗時だけ photos[0]、最後に頭文字へ落とす。
+  const sources = [circle.icon, circle.photos[0]].filter(
     (file, index, all): file is string => Boolean(file) && all.indexOf(file) === index
   );
   const file = sources[sourceIndex] ?? null;
-  const hasImage = file !== null;
+  const days = circle.days_undecided
+    ? "不定期"
+    : circle.active_days.length
+      ? circle.active_days.map((day) => DAY_LABELS[day]).join("・")
+      : "活動日 未確認";
 
   return (
-    // data-shared-image は詳細ヒーローとの行き来で位置を測るための印（lib/flip.ts）
-    <div
-      data-shared-image={circle.id}
-      className="circle-tile__media"
-      style={{ background: genreColor(circle.genre) }}
-    >
-      {file ? (
-        // 変換済みWebPをそのまま使う。読み込み失敗時は頭文字へ戻す。
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={photoSrc(file, "thumb")}
-          srcSet={photoSrcSet(file)}
-          sizes={SIZES[shape]}
-          alt=""
-          width={600}
-          height={400}
-          loading={priority ? "eager" : "lazy"}
-          fetchPriority={priority ? "high" : undefined}
-          onError={() => setSourceIndex((index) => index + 1)}
-        />
-      ) : (
-        <InitialTile circle={circle} />
-      )}
+    <article className="directory-card">
+      <motion.div
+        layoutId={`circle-media-${circle.id}`}
+        className={`directory-card__media ${pressed ? "is-pressed" : ""}`}
+        style={{ background: genreColor(circle.genre) }}
+        transition={{ type: "spring", stiffness: 300, damping: 34, mass: 0.8 }}
+        onPointerDown={() => setPressed(true)}
+        onPointerUp={() => setPressed(false)}
+        onPointerCancel={() => setPressed(false)}
+        onPointerLeave={() => setPressed(false)}
+      >
+        {file ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={photoSrc(file, "thumb")}
+            srcSet={photoSrcSet(file)}
+            sizes="(min-width: 1100px) 30vw, (min-width: 720px) 45vw, 100vw"
+            alt={`${circle.short_name}の活動写真`}
+            width={600}
+            height={400}
+            loading={priority ? "eager" : "lazy"}
+            fetchPriority={priority ? "high" : undefined}
+            onError={() => setSourceIndex((index) => index + 1)}
+            style={pressed ? { filter: "saturate(1) brightness(1.06)" } : undefined}
+          />
+        ) : (
+          <InitialTile circle={circle} />
+        )}
+        <span className="directory-card__genre">{circle.genre}</span>
+      </motion.div>
 
-      <div className="circle-tile__gradient" />
-      <div className="circle-tile__copy">
-        <div className="circle-tile__name">{circle.short_name}</div>
-        {shape === "large" && <div className="circle-tile__tagline">{circle.one_liner}</div>}
+      <div className="directory-card__body">
+        <div className="directory-card__category">{circle.category}</div>
+        <h3 className="directory-card__name">{circle.short_name}</h3>
+        <p className="directory-card__tagline">{circle.one_liner}</p>
+        <dl className="directory-card__facts">
+          <div>
+            <dt>活動日</dt>
+            <dd>{days}</dd>
+          </div>
+          <div>
+            <dt>活動場所</dt>
+            <dd>{circle.place ?? "未確認"}</dd>
+          </div>
+          <div>
+            <dt>年会費</dt>
+            <dd>{feeLabel(circle.annual_fee)}</dd>
+          </div>
+        </dl>
       </div>
-      {!hasImage && <span className="sr-only">画像なし</span>}
-    </div>
+    </article>
   );
 }
