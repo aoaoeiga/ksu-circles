@@ -87,6 +87,46 @@
       }
     },
     {
+      "id": "c042",
+      "short_name": "POPINS",
+      "name": "京都産業大学POPINS",
+      "division": "その他",
+      "category": "届出団体",
+      "genre": "球技",
+      "one_liner": "みんなで楽しくバドミントンをする団体です。",
+      "active_days": [
+        2
+      ],
+      "days_undecided": false,
+      "frequency": "1",
+      "place": "京都テルサ",
+      "annual_fee": 8000,
+      "member_count": 185,
+      "beginner_count": null,
+      "first_year_count": 150,
+      "male_ratio": 60,
+      "ease": "とても緩い（自由参加）",
+      "senior_call": "主に下の名前にさん・くん付け",
+      "multi_club": "いる / 特になし。自由に掛け持ち",
+      "description": "",
+      "leader_comment": {
+        "text": "みんな仲良く、明るい雰囲気で活動しています！ぜひきてください！！",
+        "role": "部長（3年）"
+      },
+      "recruiting": "いつでも入れる",
+      "surveyed_at": "2026-10-13",
+      "sns": {
+        "instagram": "https://www.instagram.com/popins_ksu?rpxt=MTZ2ajJmNnYxdGVrYQ%3D%3D",
+        "x": null,
+        "website": null
+      },
+      "icon": null,
+      "photos": [],
+      "tile_size": "M",
+      "listed": false,
+      "og_image": null
+    },
+    {
       "id": "c047",
       "short_name": "プレゼン研究会〈PSGグループ〉",
       "name": "プレゼン研究会〈PSGグループ〉",
@@ -423,6 +463,49 @@
       "og_image": null
     },
     {
+      "id": "c080",
+      "short_name": "少林寺拳法部",
+      "name": "体育会少林寺拳法部",
+      "division": "その他",
+      "category": "体育会所属クラブ",
+      "genre": "武道",
+      "one_liner": "一緒にやろう！少林寺拳法部",
+      "active_days": [
+        0,
+        1,
+        4,
+        5
+      ],
+      "days_undecided": false,
+      "frequency": null,
+      "place": "総合体育館の練習室3",
+      "annual_fee": 0,
+      "member_count": 11,
+      "beginner_count": 8,
+      "first_year_count": 5,
+      "male_ratio": 0,
+      "ease": "学業優先(要相談)",
+      "senior_call": "個人による",
+      "multi_club": "いる",
+      "description": "",
+      "leader_comment": {
+        "text": "楽しんで一緒にやりましょう！",
+        "role": "主将（3年）"
+      },
+      "recruiting": "いつでも入れる",
+      "surveyed_at": "2026-10-26",
+      "sns": {
+        "instagram": null,
+        "x": null,
+        "website": null
+      },
+      "icon": null,
+      "photos": [],
+      "tile_size": "M",
+      "listed": false,
+      "og_image": null
+    },
+    {
       "id": "c120",
       "short_name": "写真部",
       "name": "写真部",
@@ -509,6 +592,57 @@
         "src": "/circles/c134/01.webp",
         "width": 1179,
         "height": 786
+      }
+    },
+    {
+      "id": "c135",
+      "short_name": "みつばち同好会BoooN!!!",
+      "name": "有志団体みつばち同好会BoooN!!!",
+      "division": "その他",
+      "category": "委員会・その他",
+      "genre": "その他",
+      "one_liner": "みつばちと一緒に、大学生活を",
+      "active_days": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "days_undecided": false,
+      "frequency": null,
+      "place": "養蜂場",
+      "annual_fee": 0,
+      "member_count": 31,
+      "beginner_count": 31,
+      "first_year_count": null,
+      "male_ratio": 58,
+      "ease": "大丈夫",
+      "senior_call": "個人による",
+      "multi_club": "いる",
+      "description": "",
+      "leader_comment": {
+        "text": "一緒にみつばちのお世話やはちみつの魅力を楽しく感じましょう！",
+        "role": "代表"
+      },
+      "recruiting": "いつでも入れる",
+      "surveyed_at": "2026-10-11",
+      "sns": {
+        "instagram": "https://www.instagram.com/booon_ksu?psln=MXRiMjZuY3Jwa2E5dw==",
+        "x": null,
+        "website": null
+      },
+      "icon": "/circles/c135/icon.webp",
+      "photos": [
+        "/circles/c135/01.webp",
+        "/circles/c135/02.webp"
+      ],
+      "tile_size": "M",
+      "listed": false,
+      "og_image": {
+        "src": "/circles/c135/01.webp",
+        "width": 959,
+        "height": 639
       }
     }
   ]
